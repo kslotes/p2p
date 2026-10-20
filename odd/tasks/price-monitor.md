@@ -30,7 +30,7 @@ Out of scope: authenticated endpoints, ad management, persistence, Telegram aler
 | ID | Task | Route | Status |
 |----|------|-------|--------|
 | T1 | Project scaffold (git, uv package, deps, .gitignore) | inline (mechanical) | [x] |
-| T2 | Domain models + market data port + use case (best price, spread) with tests | delegated (2+ non-trivial files) | [ ] |
+| T2 | Domain models + market data port + use case (best price, spread) with tests | delegated (2+ non-trivial files) | [x] |
 | T3 | Binance public adapter with fixture-based tests | delegated (2+ non-trivial files) | [ ] |
 | T4 | CLI monitor loop (rich table, config flags) + README | delegated (2+ non-trivial files) | [ ] |
 
@@ -48,7 +48,8 @@ Out of scope: authenticated endpoints, ad management, persistence, Telegram aler
 ## Progress / Evidence
 
 - T1: uv 0.13.2, Python 3.13.16, deps httpx/pydantic/rich, dev pytest/ruff.
+- T2: RED observed (ImportError on `p2p.domain`), then GREEN `uv run pytest -q` 7 passed; `ruff check` and `ruff format --check` clean. Domain speaks in advertiser `Side`; asks = SELL ads (cheapest first), bids = BUY ads (highest first); spread % is relative to the best bid. Commit: `feat(domain): add ad models, market data port and snapshot use case`.
 
 ## Next step
 
-T2.
+T3.
