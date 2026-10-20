@@ -1,7 +1,7 @@
 [project]
 name = "p2p"
 version = "0.1.0"
-description = "Add your description here"
+description = "Read-only Binance P2P price monitor CLI"
 readme = "README.md"
 authors = [
     { name = "kslotes", email = "nitsugaorom@gmail.com" }
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-p2p = "p2p:main"
+p2p-monitor = "p2p.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.2,<0.14.0"]

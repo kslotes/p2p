@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from p2p!")
+"""Read-only Binance P2P price monitor."""
