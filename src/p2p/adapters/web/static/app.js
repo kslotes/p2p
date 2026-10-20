@@ -300,9 +300,18 @@ function showResult(result) {
   }
   const estimate = $("estimate");
   estimate.dataset.outcome = result ? result.outcome : "";
-  estimate.textContent = result
-    ? `${signed(result.fiat_result)} ${calcFiat} (≈ ${signed(result.asset_result)} USDT)`
-    : "-";
+  if (result) {
+    // fiat and asset on separate lines so the narrow widget never wraps mid-amount
+    const fiatLine = document.createElement("span");
+    fiatLine.className = "estimate-line";
+    fiatLine.textContent = `${signed(result.fiat_result)} ${calcFiat}`;
+    const assetLine = document.createElement("span");
+    assetLine.className = "estimate-line";
+    assetLine.textContent = `≈ ${signed(result.asset_result)} USDT`;
+    estimate.replaceChildren(fiatLine, assetLine);
+  } else {
+    estimate.textContent = "-";
+  }
   const badge = $("outcome");
   badge.dataset.outcome = result ? result.outcome : "";
   badge.textContent = result ? result.outcome.replace("_", "-") : "-";

@@ -264,6 +264,11 @@ td.wrap {
   font-variant-numeric: tabular-nums;
 }
 
+.estimate-line {
+  display: block;
+  white-space: nowrap;
+}
+
 /* estimate colored by outcome, like the badge */
 .calc-result dd[data-outcome="GAIN"] {
   color: var(--buy);
