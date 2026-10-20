@@ -37,7 +37,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 |----|------|-------|--------|
 | T5 | Domain round-trip fee calculator (`Decimal`) with tests | delegated (writer for T5-T7, 2+ non-trivial files) | [x] |
 | T6 | FastAPI web adapter: shared poller + cache, `/api/snapshots`, `/api/stream` (SSE), `/api/round-trip`, `p2p-web` entrypoint, tests | delegated | [x] |
-| T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [ ] |
+| T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [x] |
 
 ## Acceptance criteria
 
@@ -62,8 +62,14 @@ Out of scope: history persistence, alerts, auth, deployment.
   - RED: `uv run pytest -q tests/test_web.py` -> collection error (`p2p.adapters.web` missing).
   - GREEN: `uv run pytest -q` -> 48 passed; `ruff check` clean; `ruff format --check` clean.
   - Deps: `fastapi`, `uvicorn`. Pytest filters Starlette's "use httpx2" TestClient deprecation warning.
-  - Commit: `feat(web): add FastAPI adapter with shared poller, SSE and round-trip API` (hash recorded with T7).
+  - Commit: `feat(web): add FastAPI adapter with shared poller, SSE and round-trip API` -> `eea07ca`.
+- T7 (delegated): `adapters/web/static/` (`index.html`, `app.js`, `styles.css`) mounted at `/` after the API routes. Vanilla JS: EventSource with polling fallback (retries SSE every 30s), one panel per asset with CLI labels, per-asset error + data time without wiping last good data, all server text via `textContent`. Calculator: sell / rebuy / maker fee % (default 0.20, localStorage in try/catch), 300ms debounce, aborts stale requests, LOSS / BREAK-EVEN / GAIN badge, unverified-fee note. Light/dark via `prefers-color-scheme`; single column at <= 860px with the calculator first. README: "Web UI" section (flags, endpoints, fee formulas, unverified fee) and Layout update.
+  - RED: `uv run pytest -q tests/test_web.py` -> `test_root_serves_the_browser_monitor_page_and_its_assets` failed (404).
+  - GREEN: `uv run pytest -q` -> 49 passed; `ruff check` clean; `ruff format --check` clean; `node --check app.js` ok; wheel contains `p2p/adapters/web/static/*`.
+  - Live smoke (`uv run p2p-web --asset USDT --interval 15 --port 8765`): `/` 200 text/html (2257 B); `/api/snapshots` USDT/ARS 5 asks + 5 bids, no error; `/api/round-trip?sell=1618&rebuy=1610&fee_pct=0.2` -> 1614.76 / 1613.23 / 1.53 / GAIN; `/api/stream` sent the initial `data:` event.
+  - Commit: `feat(web): add browser monitor page with fee calculator` (this commit; see `git log`).
+  - Not verified: visual check in a real browser (layout, dark mode, SSE fallback path).
 
 ## Next step
 
-T7 (static frontend + README).
+All tasks done. Manual browser check, then PR slices per Delivery (PR1 = T5 + T6, PR2 = T7); push/PRs are the user's call.

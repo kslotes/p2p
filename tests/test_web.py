@@ -234,3 +234,18 @@ def test_web_parse_args_reuses_monitor_flags_and_adds_host_and_port():
     assert config.interval == 5
     assert (host, port) == ("127.0.0.1", 9000)
     assert parse_args([])[1:] == ("127.0.0.1", 8000)
+
+
+def test_root_serves_the_browser_monitor_page_and_its_assets():
+    client = TestClient(make_app(FakeMarketData()))
+
+    page = client.get("/")
+    script = client.get("/app.js")
+    styles = client.get("/styles.css")
+
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert "Maker fee %" in page.text and "app.js" in page.text
+    assert script.status_code == 200 and "EventSource" in script.text
+    assert styles.status_code == 200
+    assert client.get("/api/round-trip?sell=1&rebuy=1&fee_pct=0").status_code == 200

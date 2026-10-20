@@ -1,4 +1,5 @@
-"""FastAPI driving adapter: JSON snapshots, SSE live updates, round-trip fees.
+"""FastAPI driving adapter: JSON snapshots, SSE live updates, round-trip fees
+and the static browser page at ``/``.
 
 Money is serialized as decimal strings, never floats.
 """
@@ -11,10 +12,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from p2p.adapters.web.poller import SnapshotPoller
 from p2p.application import GetMarketSnapshot
@@ -23,6 +26,7 @@ from p2p.domain import Ad, round_trip
 
 KEEPALIVE_SECONDS = 15  # comment line so proxies and browsers keep the stream open
 PERCENT_PLACES = Decimal("0.0001")
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _dec(value: Decimal) -> str:
@@ -161,4 +165,6 @@ def create_app(
             "outcome": result.outcome.value,
         }
 
+    # Mounted last so the /api routes above take precedence.
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app

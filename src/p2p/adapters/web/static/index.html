@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>P2P Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Binance P2P monitor</h1>
+      <p class="status">
+        <span id="connection" class="dot" data-state="connecting"></span>
+        <span id="connection-label">Connecting...</span>
+        <span class="sep">|</span>
+        <span>updated <span id="updated">never</span></span>
+        <span id="settings" class="muted"></span>
+      </p>
+    </header>
+
+    <div class="layout">
+      <main id="panels" class="panels" aria-live="polite">
+        <p class="muted">Waiting for data...</p>
+      </main>
+
+      <aside class="calculator" aria-labelledby="calc-title">
+        <h2 id="calc-title">Round-trip calculator</h2>
+        <form id="calc" autocomplete="off" novalidate>
+          <label>
+            <span>Sell price</span>
+            <input id="sell" name="sell" inputmode="decimal" placeholder="1618" />
+          </label>
+          <label>
+            <span>Rebuy price</span>
+            <input id="rebuy" name="rebuy" inputmode="decimal" placeholder="1610" />
+          </label>
+          <label>
+            <span>Maker fee %</span>
+            <input id="fee" name="fee" inputmode="decimal" value="0.20" />
+          </label>
+        </form>
+        <dl class="calc-result">
+          <dt>Real sell</dt>
+          <dd id="real-sell">-</dd>
+          <dt>Real rebuy</dt>
+          <dd id="real-rebuy">-</dd>
+          <dt>Real difference</dt>
+          <dd id="difference">-</dd>
+        </dl>
+        <p class="calc-status">
+          <span id="outcome" class="badge" data-outcome="">-</span>
+          <span id="calc-error" class="error-text" role="alert"></span>
+        </p>
+        <p class="note">
+          Real sell = sell x (1 - fee); real rebuy = rebuy / (1 - fee). The fee is
+          unverified: Binance P2P maker fees vary by pair. Check the fee shown in
+          the Binance app when publishing an ad.
+        </p>
+      </aside>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
