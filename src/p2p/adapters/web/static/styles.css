@@ -264,6 +264,20 @@ td.wrap {
   font-variant-numeric: tabular-nums;
 }
 
+/* estimate colored by outcome, like the badge */
+.calc-result dd[data-outcome="GAIN"] {
+  color: var(--buy);
+  font-weight: 600;
+}
+.calc-result dd[data-outcome="LOSS"] {
+  color: var(--sell);
+  font-weight: 600;
+}
+.calc-result dd[data-outcome="BREAK_EVEN"] {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
 .calc-status {
   display: flex;
   flex-wrap: wrap;

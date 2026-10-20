@@ -40,7 +40,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 | T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [x] |
 | T8 | Verification fixes: round-trip 500s (InvalidOperation / rebuy rounding to 0, price upper bound), polling re-arm race, stale calculator result; move `Config`/`MonitorState`/`refresh` out of `p2p.cli` into a shared module | delegated (2+ non-trivial files) | [x] |
 | T9 | Verified-advertiser badge: map `userType == "merchant"` (+ `userIdentity` MASS_MERCHANT / BLOCK_MERCHANT) into the domain; tick in web panels and CLI | delegated (writer for T9-T10) | [x] |
-| T10 | Calculator estimate on 1,000 USDT under Real difference: fiat result = 1000 x difference; asset result = 1000 x difference / real rebuy (ARS proceeds reinvested); domain + API + UI | delegated | [ ] |
+| T10 | Calculator estimate on 1,000 USDT under Real difference: fiat result = 1000 x difference; asset result = 1000 x difference / real rebuy (ARS proceeds reinvested); domain + API + UI | delegated | [x] |
 
 ## Acceptance criteria
 
@@ -88,9 +88,15 @@ Out of scope: history persistence, alerts, auth, deployment.
   - GREEN: `uv run pytest -q` -> 71 passed; `ruff check` clean; `ruff format --check` clean; `node --check app.js` ok.
   - Commit: `feat: flag verified merchant advertisers in web and CLI` (this commit; see `git log`).
   - Not verified: tick appearance in a real browser.
+- T10 (delegated writer, same T9-T10 trigger). `domain/fees.py`: frozen `Estimate(notional, fiat_result, asset_result)` and pure `estimate(trip, notional=1000)`; `fiat_result = notional x difference`, `asset_result = fiat_result / real_rebuy`, both ROUND_HALF_UP to 2 decimals, a zero never carries a minus sign; `notional` must be in `(0, MAX_NOTIONAL]` (1,000,000,000). `/api/round-trip` takes optional `amount` (default 1000, `gt=0`, `le=MAX_NOTIONAL`) and returns `amount`, `fiat_result`, `asset_result` as strings. UI: "Estimate on 1,000 USDT" row under Real difference, e.g. `+1,530.00 ARS (≈ +0.95 USDT)`, colored by outcome (fiat label from the snapshots payload, ARS default). README: formulas, example and `amount` param.
+  - RED: `uv run pytest -q tests/test_fees.py` -> `ImportError: cannot import name 'estimate'`; `uv run pytest -q tests/test_web.py` -> 7 failed (estimate fields, custom amount, 4 x amount 422, page row).
+  - GREEN: `uv run pytest -q` -> 84 passed; `ruff check` clean; `ruff format --check` clean; `node --check app.js` ok.
+  - Live smoke (`uv run p2p-web --asset USDT --interval 15 --port 8767`): `/api/snapshots` 10 ads, no error, 0 verified in that top 5 per side; `/api/round-trip?sell=1618&rebuy=1610&fee_pct=0.2` -> 1614.76 / 1613.23 / 1.53 / GAIN / amount 1000 / 1530.00 / 0.95; `amount=0` -> 422. Server stopped; port 8767 closed. Direct adapter fetch (20 rows/side): BUY 10 verified (MASS + BLOCK), SELL 6 verified (MASS). `p2p-monitor --once --asset USDT` exit 0, a merchant row rendered as "?" in the piped cp1252 shell (replace mode) and as "✓" with `PYTHONIOENCODING=utf-8`.
+  - Commit: `feat(web): show round-trip estimate on 1,000 USDT` (this commit; see `git log`).
+  - Not verified: estimate row and tick in a real browser. At 80 columns the narrow Advertiser column wraps the nick under the tick.
 
 ## Next step
 
 - T7-T8 merged: local `main` fast-forwarded to `e1bd5d3` (2026-10-20).
 - T9-T10 on branch `feat/merchant-badge-estimate` (from `main`). Live probe 2026-10-20: verified advertisers come as `userType: "merchant"`, `userIdentity` `MASS_MERCHANT` or `BLOCK_MERCHANT`, `badges` `["Ordinary"]`/`["Block"]`; regular users `userType: "user"`, `userIdentity: ""`.
-- T9 done; next T10 (estimate on 1,000 USDT).
+- T9-T10 done (`ae35ebc` + T10 commit). Next: manual browser check (tick + estimate row, light/dark), then the user's call on merging to `main`.

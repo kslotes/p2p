@@ -2,8 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from p2p.domain import Outcome, round_trip
-from p2p.domain.fees import MAX_PRICE
+from p2p.domain import Outcome, estimate, round_trip
+from p2p.domain.fees import MAX_NOTIONAL, MAX_PRICE
 
 
 def test_round_trip_example_gains_at_the_usdt_maker_fee():
@@ -94,3 +94,61 @@ def test_round_trip_rejects_a_fee_so_close_to_100_percent_that_prices_overflow()
             rebuy=MAX_PRICE,
             fee_rate=Decimal("0.9999999999999999999"),
         )
+
+
+def test_estimate_on_1000_units_of_the_example_gain():
+    trip = round_trip(
+        sell=Decimal(1618), rebuy=Decimal(1610), fee_rate=Decimal("0.002")
+    )
+
+    result = estimate(trip)
+
+    assert result.notional == Decimal(1000)
+    assert result.fiat_result == Decimal("1530.00")  # 1000 x 1.53
+    assert result.asset_result == Decimal("0.95")  # 1530 / 1613.23 = 0.948...
+
+
+def test_estimate_keeps_the_sign_of_a_loss_and_takes_a_custom_notional():
+    trip = round_trip(
+        sell=Decimal(1618), rebuy=Decimal(1610), fee_rate=Decimal("0.0035")
+    )
+
+    result = estimate(trip, notional=Decimal(250))
+
+    assert result.fiat_result == Decimal("-827.50")  # 250 x -3.31
+    assert result.asset_result == Decimal("-0.51")  # -827.50 / 1615.65
+
+
+def test_estimate_of_a_break_even_round_trip_is_zero_without_a_sign():
+    trip = round_trip(sell=Decimal(1600), rebuy=Decimal(1600), fee_rate=Decimal(0))
+
+    result = estimate(trip)
+
+    assert str(result.fiat_result) == "0.00"
+    assert str(result.asset_result) == "0.00"
+
+
+def test_estimate_asset_result_rounding_to_zero_drops_the_minus_sign():
+    # 1 x -0.01 = -0.01 ARS, -0.01 / 1613 rounds to 0.00 USDT, never "-0.00"
+    trip = round_trip(sell=Decimal("1612.99"), rebuy=Decimal(1613), fee_rate=Decimal(0))
+
+    result = estimate(trip, notional=Decimal(1))
+
+    assert result.fiat_result == Decimal("-0.01")
+    assert str(result.asset_result) == "0.00"
+
+
+@pytest.mark.parametrize("notional", ["0", "-1", "1000000000.01"])
+def test_estimate_rejects_a_notional_outside_its_range(notional):
+    trip = round_trip(
+        sell=Decimal(1618), rebuy=Decimal(1610), fee_rate=Decimal("0.002")
+    )
+
+    with pytest.raises(ValueError, match="amount"):
+        estimate(trip, notional=Decimal(notional))
+
+
+def test_estimate_accepts_the_maximum_notional():
+    trip = round_trip(sell=MAX_PRICE, rebuy=Decimal(1), fee_rate=Decimal(0))
+
+    assert estimate(trip, notional=MAX_NOTIONAL).fiat_result > 0

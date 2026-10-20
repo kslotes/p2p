@@ -69,7 +69,7 @@ How it behaves:
 | `GET /` | The monitor page. |
 | `GET /api/snapshots` | Latest snapshot per asset (JSON, money as decimal strings). |
 | `GET /api/stream` | The same payload as SSE: once on connect, then after every refresh. |
-| `GET /api/round-trip?sell=&rebuy=&fee_pct=` | Calculator result; `fee_pct` is a percent (`0.2` = 0.20%). 422 on invalid input. |
+| `GET /api/round-trip?sell=&rebuy=&fee_pct=[&amount=]` | Calculator result; `fee_pct` is a percent (`0.2` = 0.20%); `amount` (default 1000, max 1,000,000,000) sizes the estimate. 422 on invalid input. |
 
 ### Round-trip calculator
 
@@ -85,9 +85,12 @@ The fee is modeled as charged in crypto on each leg:
 | Real rebuy | `rebuy / (1 - fee)`, rounded to cents |
 | Real difference | `real sell - real rebuy`; % relative to real rebuy |
 | Status | `GAIN` if > 0, `LOSS` if < 0, `BREAK-EVEN` if 0.00 |
+| Estimate (fiat) | `1000 x real difference`, rounded to cents: fiat gained or lost selling and rebuying 1,000 USDT |
+| Estimate (USDT) | `fiat estimate / real rebuy`, 2 decimals: USDT gained or lost when all proceeds are rebought |
 
 Example: sell 1618, rebuy 1610, fee 0.20% -> real sell 1614.76, real rebuy
-1613.23, difference +1.53 (GAIN). At 0.35% the same pair is a LOSS (-3.31).
+1613.23, difference +1.53 (GAIN), estimate +1,530.00 ARS (about +0.95 USDT).
+At 0.35% the same pair is a LOSS (-3.31).
 
 > **The fee is unverified.** Binance P2P takers pay no fee; makers pay a
 > percentage that depends on the pair (public sources show 0-0.35%). Check the

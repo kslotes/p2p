@@ -8,6 +8,7 @@ const DEFAULT_POLL_MS = 15000;
 const MAX_PAYMENT_METHODS_SHOWN = 3;
 const FEE_STORAGE_KEY = "p2p.makerFeePct";
 const DEFAULT_FEE = "0.20";
+const DEFAULT_FIAT = "ARS";
 
 const money = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -184,6 +185,7 @@ function render(payload) {
   if (payload.pay_types.length) settings.push(`pay types: ${payload.pay_types.join(", ")}`);
   $("settings").textContent = `| ${settings.join(" | ")}`;
   pollMs = payload.interval * 1000 || DEFAULT_POLL_MS;
+  calcFiat = payload.fiat || DEFAULT_FIAT;
 }
 
 // ---------- live updates: SSE first, polling while SSE is down
@@ -282,6 +284,9 @@ function normalize(text) {
 
 let calcTimer = null;
 let calcController = null;
+let calcFiat = DEFAULT_FIAT; // fiat of the monitored pairs, for the estimate label
+
+const signed = (text) => `${Number(text) > 0 ? "+" : ""}${fmtMoney(text)}`;
 
 function showResult(result) {
   $("real-sell").textContent = result ? fmtMoney(result.real_sell) : "-";
@@ -293,6 +298,11 @@ function showResult(result) {
   } else {
     $("difference").textContent = "-";
   }
+  const estimate = $("estimate");
+  estimate.dataset.outcome = result ? result.outcome : "";
+  estimate.textContent = result
+    ? `${signed(result.fiat_result)} ${calcFiat} (≈ ${signed(result.asset_result)} USDT)`
+    : "-";
   const badge = $("outcome");
   badge.dataset.outcome = result ? result.outcome : "";
   badge.textContent = result ? result.outcome.replace("_", "-") : "-";

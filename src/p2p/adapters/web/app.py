@@ -22,7 +22,8 @@ from fastapi.staticfiles import StaticFiles
 from p2p.adapters.web.poller import SnapshotPoller
 from p2p.application import GetMarketSnapshot
 from p2p.application.monitor import Config
-from p2p.domain import Ad, round_trip
+from p2p.domain import Ad, estimate, round_trip
+from p2p.domain.fees import DEFAULT_NOTIONAL, MAX_NOTIONAL
 
 KEEPALIVE_SECONDS = 15  # comment line so proxies and browsers keep the stream open
 PERCENT_PLACES = Decimal("0.0001")
@@ -151,9 +152,18 @@ def create_app(
         fee_pct: Annotated[
             Decimal, Query(ge=0, lt=100, description="Maker fee percent, 0.2 = 0.20%.")
         ],
+        amount: Annotated[
+            Decimal,
+            Query(
+                gt=0,
+                le=MAX_NOTIONAL,
+                description="Asset amount for the estimate (1000 USDT by default).",
+            ),
+        ] = DEFAULT_NOTIONAL,
     ) -> dict[str, str]:
         try:
             result = round_trip(sell=sell, rebuy=rebuy, fee_rate=fee_pct / 100)
+            scaled = estimate(result, notional=amount)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {
@@ -165,6 +175,9 @@ def create_app(
             "difference": _dec(result.difference),
             "difference_pct": _dec(result.difference_pct),
             "outcome": result.outcome.value,
+            "amount": _dec(scaled.notional),
+            "fiat_result": _dec(scaled.fiat_result),
+            "asset_result": _dec(scaled.asset_result),
         }
 
     # Mounted last so the /api routes above take precedence.

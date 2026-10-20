@@ -9,6 +9,11 @@ Real prices are fiat amounts and are rounded to cents, so the difference is
 exact at that precision and break-even means it is 0.00. Prices are capped at
 ``MAX_PRICE`` (far above any real P2P quote; it keeps ``Decimal`` quantizing
 within context precision) and a real leg that rounds to 0.00 is rejected.
+
+``estimate`` scales a round trip to a notional amount of the asset (1,000 by
+default; USDT is roughly USD): the fiat gained or lost selling and rebuying
+that amount, and the asset gained or lost when all fiat proceeds are
+reinvested at the real rebuy price.
 """
 
 from __future__ import annotations
@@ -20,6 +25,8 @@ from enum import StrEnum
 CENT = Decimal("0.01")
 PERCENT_PLACES = Decimal("0.0001")
 MAX_PRICE = Decimal(1_000_000_000)
+DEFAULT_NOTIONAL = Decimal(1000)
+MAX_NOTIONAL = Decimal(1_000_000_000)
 
 
 class Outcome(StrEnum):
@@ -81,3 +88,34 @@ def round_trip(*, sell: Decimal, rebuy: Decimal, fee_rate: Decimal) -> RoundTrip
         difference_pct=difference_pct,
         outcome=outcome,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Estimate:
+    """A round trip scaled to ``notional`` units of the asset.
+
+    ``fiat_result`` = notional x difference; ``asset_result`` = fiat_result /
+    real rebuy. Both are rounded to 2 decimals and share the outcome's sign.
+    """
+
+    notional: Decimal
+    fiat_result: Decimal
+    asset_result: Decimal
+
+
+def estimate(trip: RoundTrip, notional: Decimal = DEFAULT_NOTIONAL) -> Estimate:
+    """Raises ``ValueError`` unless ``notional`` is in ``(0, MAX_NOTIONAL]``."""
+    if not 0 < notional <= MAX_NOTIONAL:
+        raise ValueError(f"amount must be greater than 0 and at most {MAX_NOTIONAL:,}")
+    fiat_result = notional * trip.difference
+    asset_result = fiat_result / trip.real_rebuy
+    return Estimate(
+        notional=notional,
+        fiat_result=_cents(fiat_result),
+        asset_result=_cents(asset_result),
+    )
+
+
+def _cents(value: Decimal) -> Decimal:
+    rounded = value.quantize(CENT, rounding=ROUND_HALF_UP)
+    return rounded if rounded else abs(rounded)  # "0.00", never "-0.00"

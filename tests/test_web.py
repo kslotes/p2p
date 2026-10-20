@@ -249,7 +249,26 @@ def test_round_trip_endpoint_uses_the_domain_calculator():
         "difference": "1.53",
         "difference_pct": "0.0948",
         "outcome": "GAIN",
+        "amount": "1000",
+        "fiat_result": "1530.00",
+        "asset_result": "0.95",
     }
+
+
+def test_round_trip_endpoint_estimates_a_custom_amount():
+    client = TestClient(make_app(FakeMarketData()))
+
+    response = client.get(
+        "/api/round-trip",
+        params={"sell": "1618", "rebuy": "1610", "fee_pct": "0.35", "amount": "250"},
+    )
+
+    body = response.json()
+    assert (body["amount"], body["fiat_result"], body["asset_result"]) == (
+        "250",
+        "-827.50",
+        "-0.51",
+    )
 
 
 def test_round_trip_endpoint_reports_a_loss_at_a_higher_fee():
@@ -276,6 +295,11 @@ def test_round_trip_endpoint_reports_a_loss_at_a_higher_fee():
         {"sell": "1E+50", "rebuy": "1610", "fee_pct": "0.2"},
         {"sell": "0.001", "rebuy": "0.001", "fee_pct": "0.2"},
         {"sell": "1", "rebuy": "1000000000", "fee_pct": "99.99999999999999999"},
+        # estimate amount: must be > 0 and at most the domain maximum
+        {"sell": "1618", "rebuy": "1610", "fee_pct": "0.2", "amount": "0"},
+        {"sell": "1618", "rebuy": "1610", "fee_pct": "0.2", "amount": "-5"},
+        {"sell": "1618", "rebuy": "1610", "fee_pct": "0.2", "amount": "abc"},
+        {"sell": "1618", "rebuy": "1610", "fee_pct": "0.2", "amount": "1E+12"},
     ],
 )
 def test_round_trip_endpoint_rejects_invalid_input(params):
@@ -305,6 +329,7 @@ def test_root_serves_the_browser_monitor_page_and_its_assets():
     assert page.status_code == 200
     assert page.headers["content-type"].startswith("text/html")
     assert "Maker fee %" in page.text and "app.js" in page.text
+    assert "Estimate on 1,000 USDT" in page.text
     assert script.status_code == 200 and "EventSource" in script.text
     assert styles.status_code == 200
     assert client.get("/api/round-trip?sell=1&rebuy=1&fee_pct=0").status_code == 200
