@@ -31,7 +31,7 @@ Out of scope: authenticated endpoints, ad management, persistence, Telegram aler
 |----|------|-------|--------|
 | T1 | Project scaffold (git, uv package, deps, .gitignore) | inline (mechanical) | [x] |
 | T2 | Domain models + market data port + use case (best price, spread) with tests | delegated (2+ non-trivial files) | [x] |
-| T3 | Binance public adapter with fixture-based tests | delegated (2+ non-trivial files) | [ ] |
+| T3 | Binance public adapter with fixture-based tests | delegated (2+ non-trivial files) | [x] |
 | T4 | CLI monitor loop (rich table, config flags) + README | delegated (2+ non-trivial files) | [ ] |
 
 ## Acceptance criteria
@@ -50,6 +50,8 @@ Out of scope: authenticated endpoints, ad management, persistence, Telegram aler
 - T1: uv 0.13.2, Python 3.13.16, deps httpx/pydantic/rich, dev pytest/ruff.
 - T2: RED observed (ImportError on `p2p.domain`), then GREEN `uv run pytest -q` 7 passed; `ruff check` and `ruff format --check` clean. Domain speaks in advertiser `Side`; asks = SELL ads (cheapest first), bids = BUY ads (highest first); spread % is relative to the best bid. Commit: `feat(domain): add ad models, market data port and snapshot use case`.
 
+- T3: fixture `tests/fixtures/binance_search_buy_usdt_ars.json` captured live once (3 ads, request tradeType=BUY). RED observed (ModuleNotFoundError on the adapter), then GREEN `uv run pytest -q` 15 passed; ruff clean. Tests use `httpx.MockTransport` (no network). The adapter maps advertiser side to the taker `tradeType`, validates via `model_validate_json` for exact Decimals, and raises `MarketDataError` on network, HTTP, API code, malformed payload or side mismatch. `available` maps to `tradableQuantity`. `--pay-type` takes Binance identifiers (e.g. `MercadoPagoNew`), not display names. Commit: `feat(adapters): add Binance public P2P market data adapter`.
+
 ## Next step
 
-T3.
+T4.
