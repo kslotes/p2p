@@ -36,7 +36,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 | ID | Task | Route | Status |
 |----|------|-------|--------|
 | T5 | Domain round-trip fee calculator (`Decimal`) with tests | delegated (writer for T5-T7, 2+ non-trivial files) | [x] |
-| T6 | FastAPI web adapter: shared poller + cache, `/api/snapshots`, `/api/stream` (SSE), `/api/round-trip`, `p2p-web` entrypoint, tests | delegated | [ ] |
+| T6 | FastAPI web adapter: shared poller + cache, `/api/snapshots`, `/api/stream` (SSE), `/api/round-trip`, `p2p-web` entrypoint, tests | delegated | [x] |
 | T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [ ] |
 
 ## Acceptance criteria
@@ -57,8 +57,13 @@ Out of scope: history persistence, alerts, auth, deployment.
 - T5 (delegated): `domain/fees.py` with `round_trip()` -> frozen `RoundTrip` + `Outcome` (LOSS / BREAK_EVEN / GAIN). Real legs are rounded to cents (ROUND_HALF_UP) before the difference, which is what makes the acceptance example land on 1.53 (unrounded legs give 1.53755); `difference_pct` relative to real rebuy, 4 decimals.
   - RED: `uv run pytest -q tests/test_fees.py` -> `ImportError: cannot import name 'Outcome'`.
   - GREEN: `uv run pytest -q` -> 32 passed; `ruff check` clean; `ruff format --check` clean.
-  - Commit: `feat(domain): add round-trip maker fee calculator` (hash recorded with T6).
+  - Commit: `feat(domain): add round-trip maker fee calculator` -> `7e2acf9`.
+- T6 (delegated): `adapters/web/` with `create_app(use_case, config)`, `SnapshotPoller` (one shared asyncio task started in the lifespan; first refresh before serving, then every interval; reuses the CLI `refresh`/`MonitorState`, so a failed asset keeps its last good snapshot and records the error), `/api/snapshots`, `/api/stream` (SSE: initial event + one per refresh, keepalive comments, ends when the poller stops), `/api/round-trip` (Query validation + domain `ValueError` -> 422), decimals as strings. `p2p-web` = `p2p.adapters.web.main:main`; CLI flags shared via new `add_monitor_arguments`/`config_from_args`; `MonitorState.snapshot_times` adds per-asset update times. The use case is already async, so no `to_thread` was needed.
+  - RED: `uv run pytest -q tests/test_web.py` -> collection error (`p2p.adapters.web` missing).
+  - GREEN: `uv run pytest -q` -> 48 passed; `ruff check` clean; `ruff format --check` clean.
+  - Deps: `fastapi`, `uvicorn`. Pytest filters Starlette's "use httpx2" TestClient deprecation warning.
+  - Commit: `feat(web): add FastAPI adapter with shared poller, SSE and round-trip API` (hash recorded with T7).
 
 ## Next step
 
-T6 (FastAPI adapter).
+T7 (static frontend + README).

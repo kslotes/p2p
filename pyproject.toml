@@ -8,13 +8,16 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.156.1",
     "httpx>=0.28.1",
     "pydantic>=2.14.1",
     "rich>=15.0.0",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
 p2p-monitor = "p2p.cli:main"
+p2p-web = "p2p.adapters.web.main:main"
 
 [build-system]
 requires = ["uv_build>=0.13.2,<0.14.0"]
@@ -24,4 +27,10 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.1",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # Starlette nudges TestClient users towards httpx2; httpx is what the app uses.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
 ]

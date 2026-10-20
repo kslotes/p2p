@@ -1,0 +1,58 @@
+"""One shared background poller: every browser reads its cache, never Binance."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+
+from p2p.application import GetMarketSnapshot
+from p2p.cli import Config, MonitorState, refresh
+
+
+class SnapshotPoller:
+    """Refresh every asset each ``config.interval`` seconds and cache the result.
+
+    Failure semantics match the terminal monitor: a failed asset keeps its last
+    good snapshot and records the error. ``changed`` is a fresh event per
+    refresh; grab it *before* reading ``state`` and await it to be woken by the
+    next refresh (or by ``stop``).
+    """
+
+    def __init__(self, use_case: GetMarketSnapshot, config: Config) -> None:
+        self._use_case = use_case
+        self.config = config
+        self.state = MonitorState()
+        self.version = 0
+        self.changed = asyncio.Event()
+        self._task: asyncio.Task[None] | None = None
+
+    @property
+    def running(self) -> bool:
+        return self._task is not None
+
+    async def refresh(self) -> None:
+        await refresh(self._use_case, self.config, self.state)
+        self.version += 1
+        self._notify()
+
+    async def start(self) -> None:
+        """Fetch once (so the first page load has data), then keep polling."""
+        await self.refresh()
+        self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        task, self._task = self._task, None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._notify()  # wake streams so they notice the poller stopped
+
+    async def _loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.config.interval)
+            await self.refresh()
+
+    def _notify(self) -> None:
+        changed, self.changed = self.changed, asyncio.Event()
+        changed.set()

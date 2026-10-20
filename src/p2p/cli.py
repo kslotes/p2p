@@ -38,9 +38,10 @@ class Config:
 
 @dataclass
 class MonitorState:
-    """Latest good snapshot and latest error per asset."""
+    """Latest good snapshot (and when it was fetched) and latest error per asset."""
 
     snapshots: dict[str, MarketSnapshot] = field(default_factory=dict)
+    snapshot_times: dict[str, datetime] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
     updated_at: datetime | None = None
 
@@ -55,11 +56,8 @@ def _split_values(values: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def parse_args(argv: Sequence[str] | None = None) -> Config:
-    parser = argparse.ArgumentParser(
-        prog="p2p-monitor",
-        description="Live Binance P2P price monitor (public data, read-only).",
-    )
+def add_monitor_arguments(parser: argparse.ArgumentParser) -> None:
+    """Flags shared by every monitor entrypoint (terminal and web)."""
     parser.add_argument(
         "--asset",
         action="append",
@@ -81,11 +79,12 @@ def parse_args(argv: Sequence[str] | None = None) -> Config:
         action="append",
         help="Binance payment identifier filter, e.g. MercadoPagoNew; repeatable.",
     )
-    parser.add_argument(
-        "--once", action="store_true", help="Render a single snapshot and exit."
-    )
-    args = parser.parse_args(argv)
 
+
+def config_from_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> Config:
+    """Validate and normalize the shared flags; exits via ``parser.error``."""
     if not 1 <= args.rows <= MAX_ROWS:
         parser.error(f"--rows must be between 1 and {MAX_ROWS}")
     if args.interval <= 0:
@@ -106,8 +105,20 @@ def parse_args(argv: Sequence[str] | None = None) -> Config:
         rows=args.rows,
         interval=args.interval,
         pay_types=pay_types,
-        once=args.once,
+        once=getattr(args, "once", False),
     )
+
+
+def parse_args(argv: Sequence[str] | None = None) -> Config:
+    parser = argparse.ArgumentParser(
+        prog="p2p-monitor",
+        description="Live Binance P2P price monitor (public data, read-only).",
+    )
+    add_monitor_arguments(parser)
+    parser.add_argument(
+        "--once", action="store_true", help="Render a single snapshot and exit."
+    )
+    return config_from_args(parser, parser.parse_args(argv))
 
 
 async def refresh(
@@ -123,6 +134,7 @@ async def refresh(
                 rows=config.rows,
                 pay_types=config.pay_types,
             )
+            state.snapshot_times[asset] = datetime.now()
             state.errors.pop(asset, None)
         except Exception as exc:  # noqa: BLE001 - the monitor must survive any refresh error
             state.errors[asset] = f"{type(exc).__name__}: {exc}"
