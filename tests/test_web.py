@@ -14,7 +14,7 @@ from p2p.application.monitor import Config
 from p2p.domain import Ad, Advertiser, MarketDataError, Side
 
 
-def make_ad(side: Side, price: str, asset: str) -> Ad:
+def make_ad(side: Side, price: str, asset: str, **advertiser: str) -> Ad:
     return Ad(
         ad_id=f"{asset}-{side}-{price}",
         side=side,
@@ -29,6 +29,7 @@ def make_ad(side: Side, price: str, asset: str) -> Ad:
             nick=f"nick-{side.value.lower()}",
             month_orders=321,
             finish_rate=Decimal("0.985"),
+            **advertiser,
         ),
     )
 
@@ -91,10 +92,35 @@ def test_snapshots_endpoint_serializes_both_sides_with_decimal_strings():
             "nick": "nick-buy",
             "month_orders": 321,
             "finish_rate": "0.985",
+            "verified": False,
+            "merchant_identity": None,
         },
     }
     assert usdt["updated_at"] is not None
     assert usdt["error"] is None
+
+
+class MerchantMarketData(FakeMarketData):
+    async def fetch_ads(self, asset, fiat, side, rows, pay_types=()):
+        merchant = {"user_type": "merchant", "merchant_identity": "BLOCK_MERCHANT"}
+        return [make_ad(side, "1619.00", asset, **merchant)]
+
+
+def test_snapshots_flag_verified_merchant_advertisers():
+    app = make_app(MerchantMarketData(), make_config("USDT"))
+
+    with TestClient(app) as client:
+        usdt = asset_entry(client.get("/api/snapshots").json(), "USDT")
+
+    advertiser = usdt["asks"][0]["advertiser"]
+    assert advertiser["verified"] is True
+    assert advertiser["merchant_identity"] == "BLOCK_MERCHANT"
+
+
+def test_page_script_renders_the_verified_merchant_tick():
+    script = TestClient(make_app(FakeMarketData())).get("/app.js").text
+
+    assert "Verified merchant" in script and "advertiser.verified" in script
 
 
 def test_snapshots_before_any_refresh_are_empty_placeholders():

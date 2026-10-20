@@ -10,7 +10,7 @@ from p2p.cli import parse_args, render
 from p2p.domain import Ad, Advertiser, MarketDataError, Side
 
 
-def make_ad(side: Side, price: str, asset: str = "USDT") -> Ad:
+def make_ad(side: Side, price: str, asset: str = "USDT", **advertiser: str) -> Ad:
     return Ad(
         ad_id=f"{side}-{price}",
         side=side,
@@ -25,6 +25,7 @@ def make_ad(side: Side, price: str, asset: str = "USDT") -> Ad:
             nick=f"nick-{side.value.lower()}",
             month_orders=321,
             finish_rate=Decimal("0.985"),
+            **advertiser,
         ),
     )
 
@@ -124,3 +125,22 @@ def test_render_shows_best_prices_spread_ads_and_errors():
     assert "98.5%" in text
     assert "1K-250K" in text  # compact fiat limits
     assert "BTC is down" in text
+
+
+def test_render_marks_verified_merchants_with_a_tick():
+    class MerchantSellers(FakeMarketData):
+        async def fetch_ads(self, asset, fiat, side, rows, pay_types=()):
+            if side is Side.SELL:
+                return [make_ad(side, "1619.00", asset, user_type="merchant")]
+            return [make_ad(side, "1590.00", asset)]
+
+    config = parse_args(["--asset", "USDT", "--once"])
+    state = MonitorState()
+    asyncio.run(refresh(GetMarketSnapshot(MerchantSellers()), config, state))
+
+    console = Console(record=True, width=160)
+    console.print(render(state, config))
+    text = console.export_text()
+
+    assert "✓ nick-sell" in text
+    assert "✓ nick-buy" not in text

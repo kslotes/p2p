@@ -37,6 +37,7 @@ class _Advertiser(_Model):
     monthOrderCount: int = 0
     monthFinishRate: Decimal = Decimal(0)
     userType: str | None = None
+    userIdentity: str | None = None  # "" for regular users
 
 
 class _Item(_Model):
@@ -122,5 +123,6 @@ def _to_domain(item: _Item) -> Ad:
             month_orders=advertiser.monthOrderCount,
             finish_rate=advertiser.monthFinishRate,
             user_type=advertiser.userType,
+            merchant_identity=advertiser.userIdentity or None,
         ),
     )

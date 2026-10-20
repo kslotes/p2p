@@ -68,3 +68,15 @@ def test_spread_is_none_when_a_side_is_empty():
 
     assert snapshot.best_bid is None
     assert snapshot.spread is None
+
+
+@pytest.mark.parametrize(
+    ("user_type", "verified"),
+    [("merchant", True), ("user", False), (None, False), ("", False)],
+)
+def test_only_merchant_advertisers_are_verified(user_type, verified):
+    advertiser = Advertiser(
+        nick="alice", month_orders=10, finish_rate=Decimal(1), user_type=user_type
+    )
+
+    assert advertiser.verified is verified

@@ -61,6 +61,29 @@ function fmtMethods(methods) {
 
 // ---------- asset panels
 
+// Tick after the nick of Binance verified merchants; the tooltip names the kind
+// (MASS_MERCHANT -> MASS, BLOCK_MERCHANT -> BLOCK) when Binance reports it.
+function advertiserCell(advertiser) {
+  const cell = el("td", {}, advertiser.nick);
+  if (advertiser.verified) {
+    const kind = advertiser.merchant_identity?.replace(/_MERCHANT$/, "");
+    cell.append(
+      " ",
+      el(
+        "span",
+        {
+          class: "verified",
+          role: "img",
+          "aria-label": "Verified merchant",
+          title: kind ? `Verified merchant (${kind})` : "Verified merchant",
+        },
+        "✓",
+      ),
+    );
+  }
+  return cell;
+}
+
 function adsTable(title, ads, fiat, sideClass) {
   const head = el(
     "tr",
@@ -85,7 +108,7 @@ function adsTable(title, ads, fiat, sideClass) {
             `${fmtCompact(ad.min_amount)}-${fmtCompact(ad.max_amount)}`,
           ),
           el("td", { class: "wrap" }, fmtMethods(ad.payment_methods)),
-          el("td", {}, ad.advertiser.nick),
+          advertiserCell(ad.advertiser),
           el(
             "td",
             { class: "num" },

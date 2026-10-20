@@ -48,6 +48,8 @@ def _ad(ad: Ad) -> dict[str, Any]:
             "nick": ad.advertiser.nick,
             "month_orders": ad.advertiser.month_orders,
             "finish_rate": _dec(ad.advertiser.finish_rate),
+            "verified": ad.advertiser.verified,
+            "merchant_identity": ad.advertiser.merchant_identity,
         },
     }
 

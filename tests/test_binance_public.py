@@ -104,3 +104,42 @@ def test_unexpected_ad_side_raises_market_data_error():
 def test_malformed_payload_raises_market_data_error():
     with pytest.raises(MarketDataError):
         run_fetch(lambda request: httpx.Response(200, json={"code": "000000"}))
+
+
+def run_fetch_with_advertiser(**fields):
+    """Fixture payload whose first advertiser has ``fields`` overridden; a
+    ``None`` value removes the key to mimic a payload without it."""
+    payload = fixture_json()
+    advertiser = payload["data"][0]["advertiser"]
+    for key, value in fields.items():
+        if value is None:
+            advertiser.pop(key, None)
+        else:
+            advertiser[key] = value
+    return run_fetch(lambda request: httpx.Response(200, json=payload))[0].advertiser
+
+
+@pytest.mark.parametrize("identity", ["MASS_MERCHANT", "BLOCK_MERCHANT"])
+def test_maps_merchant_advertisers_as_verified_with_their_identity(identity):
+    advertiser = run_fetch_with_advertiser(userType="merchant", userIdentity=identity)
+
+    assert advertiser.verified is True
+    assert advertiser.merchant_identity == identity
+
+
+def test_maps_regular_users_as_not_verified():
+    advertiser = run_fetch_with_advertiser(userType="user", userIdentity="")
+
+    assert advertiser.verified is False
+    assert advertiser.merchant_identity is None
+
+
+def test_missing_or_null_merchant_fields_mean_not_verified():
+    missing = run_fetch_with_advertiser(userType=None, userIdentity=None)
+    payload = fixture_json()
+    payload["data"][0]["advertiser"].update(userType=None, userIdentity=None)
+    null = run_fetch(lambda request: httpx.Response(200, json=payload))[0].advertiser
+
+    for advertiser in (missing, null):
+        assert advertiser.verified is False
+        assert advertiser.merchant_identity is None

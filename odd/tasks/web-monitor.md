@@ -39,6 +39,8 @@ Out of scope: history persistence, alerts, auth, deployment.
 | T6 | FastAPI web adapter: shared poller + cache, `/api/snapshots`, `/api/stream` (SSE), `/api/round-trip`, `p2p-web` entrypoint, tests | delegated | [x] |
 | T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [x] |
 | T8 | Verification fixes: round-trip 500s (InvalidOperation / rebuy rounding to 0, price upper bound), polling re-arm race, stale calculator result; move `Config`/`MonitorState`/`refresh` out of `p2p.cli` into a shared module | delegated (2+ non-trivial files) | [x] |
+| T9 | Verified-advertiser badge: map `userType == "merchant"` (+ `userIdentity` MASS_MERCHANT / BLOCK_MERCHANT) into the domain; tick in web panels and CLI | delegated (writer for T9-T10) | [x] |
+| T10 | Calculator estimate on 1,000 USDT under Real difference: fiat result = 1000 x difference; asset result = 1000 x difference / real rebuy (ARS proceeds reinvested); domain + API + UI | delegated | [ ] |
 
 ## Acceptance criteria
 
@@ -80,6 +82,15 @@ Out of scope: history persistence, alerts, auth, deployment.
   - Commit: `fix(web): reject out-of-range round-trip inputs and harden live updates` (this commit; see `git log`).
   - Not verified: JS polling/abort fixes in a real browser (no JS test runner in the repo).
 
+- T9 (delegated writer; trigger: 2+ non-trivial files across domain, adapter, web, CLI). `Advertiser` gains `merchant_identity` (None for regular users, `""` normalized to None) and a pure `verified` property (`user_type == "merchant"`; null/missing = not verified). Binance adapter maps `userIdentity`. `/api/snapshots` advertiser adds `verified` + `merchant_identity`. Web: round "✓" badge after the nick (`role="img"`, `aria-label="Verified merchant"`, tooltip `Verified merchant (MASS|BLOCK)`), own light/dark tokens. CLI: bold cyan "✓ " before the nick (prefix so the Advertiser column's ellipsis cannot cut it). README "Reading the screen" legend line.
+  - Found while verifying: rich on a piped Windows stdout (cp1252) raised `UnicodeEncodeError` on "✓" (also latent for emoji nicks). `cli.main` now reconfigures stdout with `errors="replace"` (prints "?" instead of crashing).
+  - RED: `uv run pytest -q` -> 12 failed, 59 passed (domain `verified`, adapter merchant/block/user/missing, web payload + script, CLI tick).
+  - GREEN: `uv run pytest -q` -> 71 passed; `ruff check` clean; `ruff format --check` clean; `node --check app.js` ok.
+  - Commit: `feat: flag verified merchant advertisers in web and CLI` (this commit; see `git log`).
+  - Not verified: tick appearance in a real browser.
+
 ## Next step
 
-All tasks done. Manual browser check, then per the 2026-10-20 Delivery update fast-forward local `main` to `feat/web-monitor` (user's call).
+- T7-T8 merged: local `main` fast-forwarded to `e1bd5d3` (2026-10-20).
+- T9-T10 on branch `feat/merchant-badge-estimate` (from `main`). Live probe 2026-10-20: verified advertisers come as `userType: "merchant"`, `userIdentity` `MASS_MERCHANT` or `BLOCK_MERCHANT`, `badges` `["Ordinary"]`/`["Block"]`; regular users `userType: "user"`, `userIdentity: ""`.
+- T9 done; next T10 (estimate on 1,000 USDT).

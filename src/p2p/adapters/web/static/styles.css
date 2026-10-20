@@ -12,6 +12,8 @@
   --gain-bg: #d9f2e4;
   --loss-bg: #fbe0dd;
   --accent: #2f6fde;
+  --verified-bg: #1d64d8;
+  --verified-text: #ffffff;
   --radius: 8px;
   font-family:
     system-ui,
@@ -38,6 +40,8 @@
     --gain-bg: #143323;
     --loss-bg: #3d1a17;
     --accent: #6ea2ff;
+    --verified-bg: #6ea2ff;
+    --verified-text: #0f1216;
   }
 }
 
@@ -183,6 +187,21 @@ th.num {
 td.wrap {
   white-space: normal;
   min-width: 140px;
+}
+
+.verified {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 50%;
+  background: var(--verified-bg);
+  color: var(--verified-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: help;
 }
 
 .error {

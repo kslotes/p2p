@@ -39,6 +39,7 @@ taker:
 - **Spread**: lowest ask minus highest bid; the percentage is relative to the highest bid.
 - **Limits**: min-max fiat amount per order (`K` = thousand, `M` = million).
 - **Orders 30d**: advertiser's 30-day order count and completion rate.
+- **✓ before the advertiser** (after it in the web UI): Binance verified merchant (`userType` `merchant`; the web tooltip shows MASS or BLOCK).
 
 ## Web UI
 

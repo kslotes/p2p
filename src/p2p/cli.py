@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from collections.abc import Sequence
 from decimal import Decimal
 
@@ -22,6 +23,7 @@ from p2p.config import add_monitor_arguments, config_from_args
 from p2p.domain import Ad, MarketSnapshot
 
 MAX_PAYMENT_METHODS_SHOWN = 3
+VERIFIED_TICK = "✓"  # check mark before verified merchant nicks
 
 
 def parse_args(argv: Sequence[str] | None = None) -> Config:
@@ -65,6 +67,15 @@ def _methods(ad: Ad) -> str:
     return ", ".join(shown) + (f" +{extra}" if extra > 0 else "")
 
 
+def _advertiser(ad: Ad) -> Text:
+    # The tick goes first so a long nick truncated with an ellipsis keeps it.
+    text = Text()
+    if ad.advertiser.verified:
+        text.append(f"{VERIFIED_TICK} ", style="bold cyan")
+    text.append(ad.advertiser.nick)
+    return text
+
+
 def _ads_table(title: str, ads: Sequence[Ad], fiat: str, style: str) -> Table:
     table = Table(
         title=title,
@@ -88,7 +99,7 @@ def _ads_table(title: str, ads: Sequence[Ad], fiat: str, style: str) -> Table:
             _quantity(ad.available),
             f"{_compact(ad.min_amount)}-{_compact(ad.max_amount)}",
             _methods(ad),
-            ad.advertiser.nick,
+            _advertiser(ad),
             f"{ad.advertiser.month_orders} @ {_percent(ad.advertiser.finish_rate)}",
         )
     if not ads:
@@ -160,6 +171,10 @@ async def _run(config: Config, console: Console) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     config = parse_args(argv)
+    # A legacy code page (cp1252 when piped on Windows) cannot encode the tick
+    # or emoji in nicks; print "?" for those instead of crashing.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     console = Console()
     try:
         return asyncio.run(_run(config, console))

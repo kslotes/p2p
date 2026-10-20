@@ -25,12 +25,21 @@ class Side(StrEnum):
         return Side.SELL if self is Side.BUY else Side.BUY
 
 
+MERCHANT = "merchant"
+
+
 @dataclass(frozen=True, slots=True)
 class Advertiser:
     nick: str
     month_orders: int
     finish_rate: Decimal  # ratio in [0, 1]
-    user_type: str | None = None
+    user_type: str | None = None  # "merchant" or "user" as Binance reports it
+    merchant_identity: str | None = None  # e.g. MASS_MERCHANT, BLOCK_MERCHANT
+
+    @property
+    def verified(self) -> bool:
+        """Binance verified merchant; a missing user type counts as not verified."""
+        return self.user_type == MERCHANT
 
 
 @dataclass(frozen=True, slots=True)
