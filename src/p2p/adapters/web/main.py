@@ -11,7 +11,8 @@ import uvicorn
 from p2p.adapters.binance_public import BinancePublicMarketData
 from p2p.adapters.web.app import create_app
 from p2p.application import GetMarketSnapshot
-from p2p.cli import Config, add_monitor_arguments, config_from_args
+from p2p.application.monitor import Config
+from p2p.config import add_monitor_arguments, config_from_args
 
 
 def parse_args(argv: Sequence[str] | None = None) -> tuple[Config, str, int]:

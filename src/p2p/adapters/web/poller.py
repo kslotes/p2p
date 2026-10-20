@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 
 from p2p.application import GetMarketSnapshot
-from p2p.cli import Config, MonitorState, refresh
+from p2p.application.monitor import Config, MonitorState, refresh
 
 
 class SnapshotPoller:

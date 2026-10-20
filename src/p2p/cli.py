@@ -5,8 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 
 import httpx
@@ -19,94 +17,11 @@ from rich.text import Text
 
 from p2p.adapters.binance_public import BinancePublicMarketData
 from p2p.application import GetMarketSnapshot
+from p2p.application.monitor import Config, MonitorState, refresh
+from p2p.config import add_monitor_arguments, config_from_args
 from p2p.domain import Ad, MarketSnapshot
 
-DEFAULT_ASSETS = ("USDT", "USDC", "BTC", "ETH")
-MAX_ROWS = 20  # Binance search endpoint caps page size at 20
 MAX_PAYMENT_METHODS_SHOWN = 3
-
-
-@dataclass(frozen=True, slots=True)
-class Config:
-    assets: tuple[str, ...]
-    fiat: str
-    rows: int
-    interval: float
-    pay_types: tuple[str, ...]
-    once: bool
-
-
-@dataclass
-class MonitorState:
-    """Latest good snapshot (and when it was fetched) and latest error per asset."""
-
-    snapshots: dict[str, MarketSnapshot] = field(default_factory=dict)
-    snapshot_times: dict[str, datetime] = field(default_factory=dict)
-    errors: dict[str, str] = field(default_factory=dict)
-    updated_at: datetime | None = None
-
-
-def _split_values(values: Sequence[str] | None) -> tuple[str, ...]:
-    """Flatten repeated/comma-separated flag values, uppercased, keeping order."""
-    seen: dict[str, None] = {}
-    for value in values or ():
-        for part in value.split(","):
-            if part := part.strip().upper():
-                seen.setdefault(part, None)
-    return tuple(seen)
-
-
-def add_monitor_arguments(parser: argparse.ArgumentParser) -> None:
-    """Flags shared by every monitor entrypoint (terminal and web)."""
-    parser.add_argument(
-        "--asset",
-        action="append",
-        help=f"Asset(s) to watch; repeatable or comma separated "
-        f"(default: {','.join(DEFAULT_ASSETS)}).",
-    )
-    parser.add_argument("--fiat", default="ARS", help="Fiat currency (default: ARS).")
-    parser.add_argument(
-        "--rows", type=int, default=5, help="Ads shown per side (default: 5)."
-    )
-    parser.add_argument(
-        "--interval",
-        type=float,
-        default=15,
-        help="Seconds between refreshes (default: 15).",
-    )
-    parser.add_argument(
-        "--pay-type",
-        action="append",
-        help="Binance payment identifier filter, e.g. MercadoPagoNew; repeatable.",
-    )
-
-
-def config_from_args(
-    parser: argparse.ArgumentParser, args: argparse.Namespace
-) -> Config:
-    """Validate and normalize the shared flags; exits via ``parser.error``."""
-    if not 1 <= args.rows <= MAX_ROWS:
-        parser.error(f"--rows must be between 1 and {MAX_ROWS}")
-    if args.interval <= 0:
-        parser.error("--interval must be greater than 0")
-
-    # Payment identifiers are case-sensitive (e.g. MercadoPagoNew): no uppercasing.
-    pay_types = tuple(
-        dict.fromkeys(
-            part.strip()
-            for value in args.pay_type or ()
-            for part in value.split(",")
-            if part.strip()
-        )
-    )
-    return Config(
-        assets=_split_values(args.asset) or DEFAULT_ASSETS,
-        fiat=args.fiat.strip().upper(),
-        rows=args.rows,
-        interval=args.interval,
-        pay_types=pay_types,
-        once=getattr(args, "once", False),
-    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> Config:
@@ -119,28 +34,6 @@ def parse_args(argv: Sequence[str] | None = None) -> Config:
         "--once", action="store_true", help="Render a single snapshot and exit."
     )
     return config_from_args(parser, parser.parse_args(argv))
-
-
-async def refresh(
-    use_case: GetMarketSnapshot, config: Config, state: MonitorState
-) -> None:
-    """Fetch every asset concurrently; failures are recorded, never raised."""
-
-    async def one(asset: str) -> None:
-        try:
-            state.snapshots[asset] = await use_case.execute(
-                asset=asset,
-                fiat=config.fiat,
-                rows=config.rows,
-                pay_types=config.pay_types,
-            )
-            state.snapshot_times[asset] = datetime.now()
-            state.errors.pop(asset, None)
-        except Exception as exc:  # noqa: BLE001 - the monitor must survive any refresh error
-            state.errors[asset] = f"{type(exc).__name__}: {exc}"
-
-    await asyncio.gather(*(one(asset) for asset in config.assets))
-    state.updated_at = datetime.now()
 
 
 def _money(value: Decimal) -> str:

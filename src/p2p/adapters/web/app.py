@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from p2p.adapters.web.poller import SnapshotPoller
 from p2p.application import GetMarketSnapshot
-from p2p.cli import Config
+from p2p.application.monitor import Config
 from p2p.domain import Ad, round_trip
 
 KEEPALIVE_SECONDS = 15  # comment line so proxies and browsers keep the stream open

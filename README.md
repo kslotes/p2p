@@ -97,11 +97,12 @@ Example: sell 1618, rebuy 1610, fee 0.20% -> real sell 1614.76, real rebuy
 Hexagonal, inside `src/p2p`:
 
 - `domain/`: pure models (`Ad`, advertiser `Side`, `MarketSnapshot`, `Spread`), `Decimal` prices.
-- `application/`: `MarketDataPort` protocol and the `GetMarketSnapshot` use case.
+- `application/`: `MarketDataPort` protocol, the `GetMarketSnapshot` use case and the shared live-monitor state (`monitor.py`: `Config`, `MonitorState`, `refresh`).
 - `adapters/binance_public.py`: httpx + pydantic implementation of the port.
 - `domain/fees.py`: pure round-trip maker fee calculator (`round_trip`, `Outcome`).
 - `adapters/web/`: FastAPI app (`app.py`), shared background poller (`poller.py`), `p2p-web` entrypoint (`main.py`) and the static page (`static/`, vanilla JS, no build step).
-- `cli.py`: argument parsing (shared with `p2p-web`), refresh loop and rich rendering.
+- `config.py`: monitor flags and their validation, shared by `p2p-monitor` and `p2p-web`.
+- `cli.py`: `p2p-monitor` entrypoint, refresh loop and rich rendering.
 
 ## Development
 

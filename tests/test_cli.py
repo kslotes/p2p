@@ -5,7 +5,8 @@ import pytest
 from rich.console import Console
 
 from p2p.application import GetMarketSnapshot
-from p2p.cli import MonitorState, parse_args, refresh, render
+from p2p.application.monitor import MonitorState, refresh
+from p2p.cli import parse_args, render
 from p2p.domain import Ad, Advertiser, MarketDataError, Side
 
 

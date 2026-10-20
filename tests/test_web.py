@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from p2p.adapters.web import SnapshotPoller, create_app, sse_stream
 from p2p.adapters.web.main import parse_args
 from p2p.application import GetMarketSnapshot
-from p2p.cli import Config
+from p2p.application.monitor import Config
 from p2p.domain import Ad, Advertiser, MarketDataError, Side
 
 
