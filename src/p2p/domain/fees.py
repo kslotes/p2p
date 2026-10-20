@@ -6,17 +6,20 @@ Conservative model with the fee charged in crypto on each leg:
 - real rebuy = rebuy / (1 - fee): fiat paid per asset actually received.
 
 Real prices are fiat amounts and are rounded to cents, so the difference is
-exact at that precision and break-even means it is 0.00.
+exact at that precision and break-even means it is 0.00. Prices are capped at
+``MAX_PRICE`` (far above any real P2P quote; it keeps ``Decimal`` quantizing
+within context precision) and a real leg that rounds to 0.00 is rejected.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from enum import StrEnum
 
 CENT = Decimal("0.01")
 PERCENT_PLACES = Decimal("0.0001")
+MAX_PRICE = Decimal(1_000_000_000)
 
 
 class Outcome(StrEnum):
@@ -43,16 +46,24 @@ def round_trip(*, sell: Decimal, rebuy: Decimal, fee_rate: Decimal) -> RoundTrip
     """Evaluate selling at ``sell`` and rebuying at ``rebuy``.
 
     ``fee_rate`` is a fraction (0.002 = 0.20%). Raises ``ValueError`` unless
-    both prices are positive and ``0 <= fee_rate < 1``.
+    both prices are in ``(0, MAX_PRICE]``, ``0 <= fee_rate < 1`` and both real
+    prices are representable in cents and do not round to 0.00.
     """
     if sell <= 0 or rebuy <= 0:
         raise ValueError("prices must be greater than 0")
+    if sell > MAX_PRICE or rebuy > MAX_PRICE:
+        raise ValueError(f"prices must be at most {MAX_PRICE:,}")
     if not 0 <= fee_rate < 1:
         raise ValueError("fee rate must be in [0, 1)")
 
     keep = 1 - fee_rate
-    real_sell = (sell * keep).quantize(CENT, rounding=ROUND_HALF_UP)
-    real_rebuy = (rebuy / keep).quantize(CENT, rounding=ROUND_HALF_UP)
+    try:
+        real_sell = (sell * keep).quantize(CENT, rounding=ROUND_HALF_UP)
+        real_rebuy = (rebuy / keep).quantize(CENT, rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:  # a fee near 100% blows rebuy / keep up
+        raise ValueError("real prices are out of range; lower the fee") from exc
+    if real_sell == 0 or real_rebuy == 0:
+        raise ValueError("real prices round to 0.00; prices are too small")
     difference = real_sell - real_rebuy
     difference_pct = (difference / real_rebuy * 100).quantize(
         PERCENT_PLACES, rounding=ROUND_HALF_UP

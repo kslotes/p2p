@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 
 from p2p.application import GetMarketSnapshot
 from p2p.application.monitor import Config, MonitorState, refresh
+
+logger = logging.getLogger(__name__)
 
 
 class SnapshotPoller:
@@ -51,7 +54,12 @@ class SnapshotPoller:
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(self.config.interval)
-            await self.refresh()
+            try:
+                await self.refresh()
+            except Exception:
+                # refresh() already records per-asset errors; anything reaching
+                # here is a bug, so log it and keep the loop (and `running`) alive.
+                logger.exception("snapshot refresh failed; retrying next interval")
 
     def _notify(self) -> None:
         changed, self.changed = self.changed, asyncio.Event()

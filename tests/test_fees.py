@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 
 from p2p.domain import Outcome, round_trip
+from p2p.domain.fees import MAX_PRICE
 
 
 def test_round_trip_example_gains_at_the_usdt_maker_fee():
@@ -62,3 +63,34 @@ def test_round_trip_is_break_even_when_the_difference_rounds_to_zero():
 def test_round_trip_rejects_invalid_inputs(sell, rebuy, fee_rate):
     with pytest.raises(ValueError):
         round_trip(sell=Decimal(sell), rebuy=Decimal(rebuy), fee_rate=Decimal(fee_rate))
+
+
+def test_round_trip_accepts_prices_up_to_the_documented_maximum():
+    result = round_trip(sell=MAX_PRICE, rebuy=MAX_PRICE, fee_rate=Decimal("0.002"))
+
+    assert result.outcome is Outcome.LOSS
+
+
+@pytest.mark.parametrize(
+    ("sell", "rebuy"),
+    [("1E+50", "1610"), ("1618", "1E+50"), ("1000000000.01", "1610")],
+)
+def test_round_trip_rejects_prices_above_the_maximum(sell, rebuy):
+    with pytest.raises(ValueError, match="at most"):
+        round_trip(sell=Decimal(sell), rebuy=Decimal(rebuy), fee_rate=Decimal("0.002"))
+
+
+@pytest.mark.parametrize(("sell", "rebuy"), [("0.001", "0.001"), ("0.004", "1")])
+def test_round_trip_rejects_prices_whose_real_leg_rounds_to_zero(sell, rebuy):
+    # 0.001 x 0.998 and 0.001 / 0.998 both round to 0.00 fiat
+    with pytest.raises(ValueError, match="0.00"):
+        round_trip(sell=Decimal(sell), rebuy=Decimal(rebuy), fee_rate=Decimal("0.002"))
+
+
+def test_round_trip_rejects_a_fee_so_close_to_100_percent_that_prices_overflow():
+    with pytest.raises(ValueError, match="out of range"):
+        round_trip(
+            sell=Decimal(1),
+            rebuy=MAX_PRICE,
+            fee_rate=Decimal("0.9999999999999999999"),
+        )

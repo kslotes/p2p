@@ -27,7 +27,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 
 ## Constraints
 
-- Hexagonal: domain and application untouched except the new pure fee function; the web adapter only depends on the application layer.
+- Hexagonal: domain and application untouched except the new pure fee function and the shared monitor state moved out of the CLI (`application/monitor.py`); the web adapter depends on the application and domain layers only (its `main.py` entrypoint also wires the Binance adapter and the shared flags in `p2p/config.py`); `cli.py` and `adapters/web` never import each other.
 - Python 3.13, uv, `Decimal` money, pytest without network (fake port), ruff clean.
 - Frontend without a build step or SPA framework.
 
@@ -38,6 +38,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 | T5 | Domain round-trip fee calculator (`Decimal`) with tests | delegated (writer for T5-T7, 2+ non-trivial files) | [x] |
 | T6 | FastAPI web adapter: shared poller + cache, `/api/snapshots`, `/api/stream` (SSE), `/api/round-trip`, `p2p-web` entrypoint, tests | delegated | [x] |
 | T7 | Static frontend (asset panels, live updates, calculator widget) + README section | delegated | [x] |
+| T8 | Verification fixes: round-trip 500s (InvalidOperation / rebuy rounding to 0, price upper bound), polling re-arm race, stale calculator result; move `Config`/`MonitorState`/`refresh` out of `p2p.cli` into a shared module | delegated (2+ non-trivial files) | [x] |
 
 ## Acceptance criteria
 
@@ -50,6 +51,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 - Branch `feat/web-monitor` from `feat/price-monitor`.
 - Forecast ~750 authored lines (> 400): strategy ask-on-risk, chain strategy `stacked-to-main` (user choice). Each slice targets `main` and merges in order; `feat/price-monitor` must merge first.
 - Slices: PR1 = T5 + T6 (domain fee calc + web adapter/API); PR2 = T7 (frontend + README).
+- 2026-10-20 update (user): no PRs; after T8, fast-forward local `main` to `feat/web-monitor` (includes `feat/price-monitor`). No remote configured; nothing pushed.
 - RDD: off (global). Delivery `disabled/unmanaged`.
 
 ## Progress / Evidence
@@ -70,6 +72,14 @@ Out of scope: history persistence, alerts, auth, deployment.
   - Commit: `feat(web): add browser monitor page with fee calculator` (this commit; see `git log`).
   - Not verified: visual check in a real browser (layout, dark mode, SSE fallback path).
 
+- T8 (delegated writer; trigger: 2+ non-trivial files across domain, web adapter, JS and a module move). Two work units:
+  - Refactor: `Config`, `MonitorState`, `refresh` -> `application/monitor.py`; `DEFAULT_ASSETS`, `MAX_ROWS`, `add_monitor_arguments`, `config_from_args` -> `p2p/config.py`. `cli.py` and `adapters/web` import those instead of each other; tests and README Layout updated. Behavior unchanged: `uv run pytest -q` -> 49 passed before and after; ruff clean. Commit `refactor(application): move shared monitor state and flags out of the CLI` -> `150f71c`.
+  - Fixes: `round_trip` now rejects prices above `MAX_PRICE` (1,000,000,000), real legs that round to 0.00, and cent-quantize overflow from a fee near 100% (found while fixing: `fee_pct=99.99999999999999999` also 500'd), all as `ValueError` -> 422. `SnapshotPoller._loop` logs an unexpected `refresh` error and keeps polling (`running` stays truthful). `app.js`: a poll generation counter stops in-flight ticks from re-arming after `stopPolling()`; `calculate()` aborts the in-flight request before the empty-input early return; `normalize` handles `1,234.56`, `1.234,56`, `1234,56` and `1,234,567`; a domain 422 shows the server message.
+  - RED: `uv run pytest -q tests/test_fees.py` -> `ImportError: cannot import name 'MAX_PRICE'`; `uv run pytest -q tests/test_web.py` -> 3 failed (round-trip `1E+50` and `0.001/0.001` -> 500 instead of 422; poller loop died after one raising refresh, wait timed out). Overflow case: 2 failed (domain test + API 422).
+  - GREEN: `uv run pytest -q` -> 60 passed; `ruff check` clean; `ruff format --check` clean; `node --check app.js` ok; `normalize` exercised with node on 7 sample inputs.
+  - Commit: `fix(web): reject out-of-range round-trip inputs and harden live updates` (this commit; see `git log`).
+  - Not verified: JS polling/abort fixes in a real browser (no JS test runner in the repo).
+
 ## Next step
 
-All tasks done. Manual browser check, then PR slices per Delivery (PR1 = T5 + T6, PR2 = T7); push/PRs are the user's call.
+All tasks done. Manual browser check, then per the 2026-10-20 Delivery update fast-forward local `main` to `feat/web-monitor` (user's call).

@@ -167,6 +167,7 @@ function render(payload) {
 
 let source = null;
 let pollTimer = null;
+let pollGeneration = 0; // bumped by stopPolling so in-flight ticks do not re-arm
 let pollMs = DEFAULT_POLL_MS;
 
 function setConnection(state, label) {
@@ -188,14 +189,17 @@ async function pollOnce() {
 
 function startPolling() {
   if (pollTimer !== null) return;
+  const generation = pollGeneration;
   const tick = async () => {
     await pollOnce();
+    if (generation !== pollGeneration) return; // stopped while fetching
     pollTimer = setTimeout(tick, pollMs);
   };
   pollTimer = setTimeout(tick, 0);
 }
 
 function stopPolling() {
+  pollGeneration += 1;
   clearTimeout(pollTimer);
   pollTimer = null;
 }
@@ -237,7 +241,22 @@ function storeFee(value) {
   }
 }
 
-const normalize = (text) => text.trim().replace(",", ".");
+// Accept "1,234.56", "1.234,56" and "1234,56": when both separators appear the
+// last one is the decimal point; a lone comma is the decimal point; repeated
+// commas are thousands separators.
+function normalize(text) {
+  const value = text.trim();
+  const comma = value.lastIndexOf(",");
+  const dot = value.lastIndexOf(".");
+  if (comma !== -1 && dot !== -1) {
+    return comma > dot
+      ? value.replaceAll(".", "").replace(",", ".")
+      : value.replaceAll(",", "");
+  }
+  if (value.indexOf(",") !== comma) return value.replaceAll(",", "");
+  return value.replace(",", ".");
+}
+
 let calcTimer = null;
 let calcController = null;
 
@@ -261,11 +280,13 @@ async function calculate() {
   const rebuy = normalize($("rebuy").value);
   const fee = normalize($("fee").value);
   $("calc-error").textContent = "";
+  // Abort first so a stale in-flight response cannot repaint a cleared result.
+  calcController?.abort();
+  calcController = null;
   if (!sell || !rebuy || !fee) {
     showResult(null);
     return;
   }
-  calcController?.abort();
   calcController = new AbortController();
   const query = new URLSearchParams({ sell, rebuy, fee_pct: fee });
   try {
@@ -273,8 +294,13 @@ async function calculate() {
       signal: calcController.signal,
     });
     if (response.status === 422) {
+      // Domain rejections carry a readable string; query validation a list.
+      const { detail } = await response.json().catch(() => ({}));
       showResult(null);
-      $("calc-error").textContent = "Prices must be > 0 and the fee in [0, 100).";
+      $("calc-error").textContent =
+        typeof detail === "string"
+          ? `Invalid input: ${detail}.`
+          : "Prices must be > 0 and the fee in [0, 100).";
       return;
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

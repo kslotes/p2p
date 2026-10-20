@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from p2p.adapters.web import SnapshotPoller, create_app, sse_stream
+from p2p.adapters.web import poller as poller_module
 from p2p.adapters.web.main import parse_args
 from p2p.application import GetMarketSnapshot
 from p2p.application.monitor import Config
@@ -137,6 +138,34 @@ def test_poller_refreshes_on_its_interval_and_stops_cleanly():
     assert asyncio.run(scenario()) >= 6
 
 
+def test_poller_loop_survives_an_unexpected_refresh_error(monkeypatch, caplog):
+    real_refresh = poller_module.refresh
+    failures = []
+
+    async def flaky_refresh(*args):
+        if not failures:
+            failures.append(True)
+            raise RuntimeError("boom")
+        await real_refresh(*args)
+
+    async def scenario() -> SnapshotPoller:
+        config = replace(make_config("USDT"), interval=0.01)
+        poller = SnapshotPoller(GetMarketSnapshot(FakeMarketData()), config)
+        await poller.start()  # first refresh succeeds before the patch
+        monkeypatch.setattr(poller_module, "refresh", flaky_refresh)
+        version = poller.version
+        async with asyncio.timeout(5):  # a dead loop would never refresh again
+            while poller.version < version + 1:
+                await poller.changed.wait()
+        assert poller.running
+        await poller.stop()
+        return poller
+
+    asyncio.run(scenario())
+    assert failures == [True]
+    assert "boom" in caplog.text
+
+
 def test_stream_sends_the_current_payload_as_the_first_event():
     fake = FakeMarketData()
     app = make_app(fake, make_config("USDT"))
@@ -217,6 +246,10 @@ def test_round_trip_endpoint_reports_a_loss_at_a_higher_fee():
         {"sell": "1618", "rebuy": "1610", "fee_pct": "-0.1"},
         {"sell": "NaN", "rebuy": "1610", "fee_pct": "0.2"},
         {"sell": "1618", "fee_pct": "0.2"},
+        # domain rejections: price above the maximum, real leg rounding to 0.00
+        {"sell": "1E+50", "rebuy": "1610", "fee_pct": "0.2"},
+        {"sell": "0.001", "rebuy": "0.001", "fee_pct": "0.2"},
+        {"sell": "1", "rebuy": "1000000000", "fee_pct": "99.99999999999999999"},
     ],
 )
 def test_round_trip_endpoint_rejects_invalid_input(params):
