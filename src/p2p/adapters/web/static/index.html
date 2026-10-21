@@ -137,7 +137,10 @@
             <input id="rebuy" name="rebuy" inputmode="decimal" placeholder="1610" />
           </label>
           <label>
-            <span>Maker fee %</span>
+            <span>
+              Maker fee %
+              <small id="fee-hint" class="hint" title="Effective maker fee of your completed maker orders" hidden>from your orders</small>
+            </span>
             <input id="fee" name="fee" inputmode="decimal" value="0.20" />
           </label>
         </form>
@@ -158,9 +161,10 @@
         <p class="note">
           Real sell = sell x (1 - fee); real rebuy = rebuy / (1 - fee). Estimate:
           1,000 x difference in fiat, and that divided by real rebuy in USDT (all
-          proceeds rebought). The fee is
-          unverified: Binance P2P maker fees vary by pair. Check the fee shown in
-          the Binance app when publishing an ad.
+          proceeds rebought). Binance P2P maker fees vary by pair: unless you
+          enter one, the fee defaults to the real rate of your synced completed
+          maker orders ("from your orders"), otherwise 0.20%. Check the fee
+          shown in the Binance app when publishing an ad.
         </p>
       </aside>
     </div>

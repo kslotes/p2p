@@ -24,8 +24,15 @@ from p2p.adapters.web.poller import SnapshotPoller
 from p2p.application import GetMarketSnapshot, OrderStore
 from p2p.application.monitor import Config
 from p2p.domain import Ad, estimate, round_trip
-from p2p.domain.fees import DEFAULT_NOTIONAL, MAX_NOTIONAL
-from p2p.domain.orders import Order, OrderSide, OrderStatus, OrderSummary, summarize
+from p2p.domain.fees import DEFAULT_NOTIONAL, MAX_NOTIONAL, fee_percent
+from p2p.domain.orders import (
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderSummary,
+    effective_maker_fee_rate,
+    summarize,
+)
 
 KEEPALIVE_SECONDS = 15  # comment line so proxies and browsers keep the stream open
 PERCENT_PLACES = Decimal("0.0001")
@@ -283,6 +290,16 @@ def create_app(
             "assets": assets,
             "sync": sync_status(runner),
         }
+
+    @app.get("/api/orders/maker-fee")
+    def maker_fee() -> dict[str, str | None]:
+        """Effective maker fee of COMPLETED MAKER orders, as the calculator's
+        percent input; null without data."""
+        completed = (
+            orders.query(status=OrderStatus.COMPLETED) if orders is not None else []
+        )
+        rate = effective_maker_fee_rate(completed)
+        return {"maker_fee_pct": _dec(fee_percent(rate)) if rate is not None else None}
 
     @app.get("/api/orders/sync")
     async def order_sync_status() -> dict[str, Any]:

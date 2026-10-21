@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 
 from p2p.domain import Outcome, estimate, round_trip
-from p2p.domain.fees import MAX_NOTIONAL, MAX_PRICE
+from p2p.domain.fees import MAX_NOTIONAL, MAX_PRICE, fee_percent
 
 
 def test_round_trip_example_gains_at_the_usdt_maker_fee():
@@ -152,3 +152,17 @@ def test_estimate_accepts_the_maximum_notional():
     trip = round_trip(sell=MAX_PRICE, rebuy=Decimal(1), fee_rate=Decimal(0))
 
     assert estimate(trip, notional=MAX_NOTIONAL).fiat_result > 0
+
+
+@pytest.mark.parametrize(
+    ("rate", "percent"),
+    [
+        (Decimal("4.35") / Decimal("2177.05"), "0.20"),  # observed maker rate
+        (Decimal("0.0035"), "0.35"),
+        (Decimal("0.001249"), "0.12"),
+        (Decimal("0.001250"), "0.13"),  # half up, like the calculator
+        (Decimal(0), "0.00"),
+    ],
+)
+def test_fee_percent_turns_a_rate_into_a_two_decimal_percent(rate, percent):
+    assert str(fee_percent(rate)) == percent

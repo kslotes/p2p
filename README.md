@@ -77,6 +77,7 @@ How it behaves:
 | `GET /api/stream` | The same payload as SSE: once on connect, then after every refresh. |
 | `GET /api/round-trip?sell=&rebuy=&fee_pct=[&amount=]` | Calculator result; `fee_pct` is a percent (`0.2` = 0.20%); `amount` (default 1000, max 1,000,000,000) sizes the estimate. 422 on invalid input. |
 | `GET /api/orders[?asset=&side=&status=&from=&to=]` | Stored orders, newest first (money as decimal strings, times in ISO UTC), totals over the COMPLETED ones, every stored asset and the sync status. `from`/`to` are UTC days (`YYYY-MM-DD`), both included. 422 on invalid filters. |
+| `GET /api/orders/maker-fee` | `{"maker_fee_pct": "0.20"}`: effective maker fee of COMPLETED MAKER orders as a percent string (2 decimals), `null` without data. |
 | `GET /api/orders/sync` | Sync status: configured, running, interval, last attempt, last success, last error. |
 | `POST /api/orders/sync` | Start a sync now (no-op while one is running) and return the status; 409 when no API key is configured. |
 
@@ -102,8 +103,14 @@ which tab was open.
 ### Round-trip calculator
 
 Answers "if I sell at X and buy back at Y as a maker, do I make or lose money
-after fees?". Enter sell price, rebuy price and maker fee % (default `0.20`,
-remembered by the browser).
+after fees?". Enter sell price, rebuy price and maker fee % (a fee you type
+is remembered by the browser and always wins).
+
+Until you type a fee, it defaults to your real maker fee when the
+[order history](#order-history-sync) has COMPLETED MAKER orders: total maker
+commission / total amount of those orders, as a percent with 2 decimals,
+marked "from your orders" (`GET /api/orders/maker-fee`). Without such orders
+the default is `0.20`.
 
 The fee is modeled as charged in crypto on each leg:
 
@@ -120,8 +127,9 @@ Example: sell 1618, rebuy 1610, fee 0.20% -> real sell 1614.76, real rebuy
 1613.23, difference +1.53 (GAIN), estimate +1,530.00 ARS (about +0.95 USDT).
 At 0.35% the same pair is a LOSS (-3.31).
 
-> **The fee is unverified.** Binance P2P takers pay no fee; makers pay a
-> percentage that depends on the pair (public sources show 0-0.35%). Check the
+> **The 0.20% fallback is unverified.** Binance P2P takers pay no fee; makers
+> pay a percentage that depends on the pair (public sources show 0-0.35%), and
+> the rate from your orders mixes every asset you traded as a maker. Check the
 > fee the Binance app shows when you publish an ad and enter that value.
 
 ## Order history sync

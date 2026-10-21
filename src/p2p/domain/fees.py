@@ -116,6 +116,11 @@ def estimate(trip: RoundTrip, notional: Decimal = DEFAULT_NOTIONAL) -> Estimate:
     )
 
 
+def fee_percent(rate: Decimal) -> Decimal:
+    """A fee rate as the calculator's percent input: 0.0019866 -> 0.20."""
+    return _cents(rate * 100)
+
+
 def _cents(value: Decimal) -> Decimal:
     rounded = value.quantize(CENT, rounding=ROUND_HALF_UP)
     return rounded if rounded else abs(rounded)  # "0.00", never "-0.00"

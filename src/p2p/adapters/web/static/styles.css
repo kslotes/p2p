@@ -246,6 +246,14 @@ td.wrap {
   width: 100%;
 }
 
+.calculator .hint {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  font-size: 0.75rem;
+}
+
 .calculator input:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;

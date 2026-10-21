@@ -484,3 +484,67 @@ def test_page_has_a_history_tab_rendered_with_text_content_only():
     assert "Order history sync" in page  # README pointer when not configured
     assert "/api/orders" in script and "/api/orders/sync" in script
     assert "innerHTML" not in script
+
+
+# ---------- real maker fee for the calculator
+
+
+def test_maker_fee_is_the_effective_rate_of_completed_maker_orders():
+    store = SqliteOrderStore(":memory:")
+    created = datetime(2026, 9, 1, tzinfo=UTC)
+    store.upsert(
+        [
+            make_order("1", created=created, amount="166.11", commission="0.33"),
+            make_order("2", created=created, amount="2010.94", commission="4.02"),
+            # ignored: cancelled (never charged) and taker orders
+            make_order(
+                "3",
+                created=created,
+                status=OrderStatus.CANCELLED,
+                amount="10",
+                commission="5",
+            ),
+            make_order(
+                "4",
+                created=created,
+                role=OrderRole.TAKER,
+                amount="10",
+                commission=None,
+            ),
+        ]
+    )
+    client = TestClient(make_app(store))
+
+    assert client.get("/api/orders/maker-fee").json() == {"maker_fee_pct": "0.20"}
+
+
+def test_maker_fee_is_null_without_maker_orders_or_database():
+    store = SqliteOrderStore(":memory:")
+    store.upsert(
+        [
+            make_order(
+                "1",
+                created=datetime(2026, 9, 1, tzinfo=UTC),
+                role=OrderRole.TAKER,
+                commission=None,
+            )
+        ]
+    )
+
+    with_takers = TestClient(make_app(store)).get("/api/orders/maker-fee").json()
+    no_database = TestClient(make_app()).get("/api/orders/maker-fee").json()
+
+    assert with_takers == {"maker_fee_pct": None}
+    assert no_database == {"maker_fee_pct": None}
+
+
+def test_calculator_defaults_to_the_real_fee_unless_the_user_set_one():
+    client = TestClient(make_app())
+
+    page = client.get("/").text
+    script = client.get("/app.js").text
+
+    assert 'id="fee-hint"' in page and "from your orders" in page
+    assert "/api/orders/maker-fee" in script
+    # the real rate never replaces a stored (user-entered) value
+    assert "readStoredFee() !== null" in script

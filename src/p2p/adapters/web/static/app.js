@@ -361,10 +361,33 @@ function scheduleCalculation() {
   calcTimer = setTimeout(calculate, 300);
 }
 
+// Default fee from the user's synced orders. Only applies while the user never
+// entered a fee (nothing stored) and has not touched the field meanwhile.
+async function applyRealFee() {
+  try {
+    const response = await fetch("/api/orders/maker-fee", { cache: "no-store" });
+    if (!response.ok) return;
+    const { maker_fee_pct: real } = await response.json();
+    if (real == null || readStoredFee() !== null || $("fee").value !== DEFAULT_FEE) {
+      return;
+    }
+    $("fee").value = real;
+    $("fee-hint").hidden = false;
+    scheduleCalculation();
+  } catch {
+    // Keep the 0.20% default.
+  }
+}
+
 function initCalculator() {
-  $("fee").value = readStoredFee() ?? DEFAULT_FEE;
+  const storedFee = readStoredFee();
+  $("fee").value = storedFee ?? DEFAULT_FEE;
+  if (storedFee === null) applyRealFee();
   $("calc").addEventListener("input", (event) => {
-    if (event.target.id === "fee") storeFee(event.target.value);
+    if (event.target.id === "fee") {
+      storeFee(event.target.value); // a user-entered fee always wins
+      $("fee-hint").hidden = true;
+    }
     scheduleCalculation();
   });
   $("calc").addEventListener("submit", (event) => event.preventDefault());
