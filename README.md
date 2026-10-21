@@ -45,7 +45,8 @@ taker:
 
 ## Web UI
 
-Same data in the browser, plus a round-trip fee calculator:
+Same data in the browser, plus a round-trip fee calculator and a
+[History tab](#history-tab) with your synced orders:
 
 ```sh
 uv run p2p-web                              # http://127.0.0.1:8000
@@ -59,6 +60,9 @@ It takes the same `--asset`, `--fiat`, `--rows`, `--interval` and
 |------|---------|---------|
 | `--host` | `127.0.0.1` | Bind address. Keep it local unless you mean to expose it. |
 | `--port` | `8000` | Bind port. |
+| `--sync-interval` | `5` | Minutes between background order history syncs (needs the API key, see [order history sync](#order-history-sync)). `0` disables the automatic sync; **Sync now** still works. |
+| `--db` | `$P2P_DB_PATH` or `data/p2p.sqlite` | Order database, as for `p2p-sync`. |
+| `--env-file` | `./.env` | File holding the Binance credentials, as for `p2p-sync`. |
 
 How it behaves:
 
@@ -72,6 +76,28 @@ How it behaves:
 | `GET /api/snapshots` | Latest snapshot per asset (JSON, money as decimal strings). |
 | `GET /api/stream` | The same payload as SSE: once on connect, then after every refresh. |
 | `GET /api/round-trip?sell=&rebuy=&fee_pct=[&amount=]` | Calculator result; `fee_pct` is a percent (`0.2` = 0.20%); `amount` (default 1000, max 1,000,000,000) sizes the estimate. 422 on invalid input. |
+| `GET /api/orders[?asset=&side=&status=&from=&to=]` | Stored orders, newest first (money as decimal strings, times in ISO UTC), totals over the COMPLETED ones, every stored asset and the sync status. `from`/`to` are UTC days (`YYYY-MM-DD`), both included. 422 on invalid filters. |
+| `GET /api/orders/sync` | Sync status: configured, running, interval, last attempt, last success, last error. |
+| `POST /api/orders/sync` | Start a sync now (no-op while one is running) and return the status; 409 when no API key is configured. |
+
+### History tab
+
+The **History** tab lists the orders stored by the [order history
+sync](#order-history-sync) (date in your local time, side, asset, amount,
+unit price, total fiat, fee, role, status, counterparty, payment method),
+with filters by asset, side, status and UTC date range. The totals block
+only counts COMPLETED orders, per side, asset and fiat. Cancelled orders show
+no fee: Binance reports one, but it was never charged. The page remembers
+which tab was open.
+
+- With the API key in `.env` (or the environment), `p2p-web` syncs once at
+  startup and then every `--sync-interval` minutes, in the background: a
+  slow or failing sync never blocks the price monitor. Two syncs never
+  overlap. The status line shows the last successful sync and, when the last
+  attempt failed, a short reason (e.g. the API key / IP restriction message);
+  **Sync now** starts one immediately.
+- Without the key the tab says how to configure it, and still lists the
+  orders of an existing database (e.g. filled by `p2p-sync`).
 
 ### Round-trip calculator
 
@@ -165,7 +191,7 @@ Hexagonal, inside `src/p2p`:
 - `application/`: `MarketDataPort` protocol, the `GetMarketSnapshot` use case and the shared live-monitor state (`monitor.py`: `Config`, `MonitorState`, `refresh`).
 - `adapters/binance_public.py`: httpx + pydantic implementation of the port.
 - `domain/fees.py`: pure round-trip maker fee calculator (`round_trip`, `Outcome`).
-- `adapters/web/`: FastAPI app (`app.py`), shared background poller (`poller.py`), `p2p-web` entrypoint (`main.py`) and the static page (`static/`, vanilla JS, no build step).
+- `adapters/web/`: FastAPI app (`app.py`), shared background poller (`poller.py`), background order sync (`order_sync_runner.py`), `p2p-web` entrypoint (`main.py`) and the static page (`static/`, vanilla JS, no build step).
 - `domain/orders.py`: your own P2P `Order`s and pure aggregation (totals, effective maker fee rate).
 - `application/order_sync.py`: `SyncOrderHistory` use case over the `OrderHistorySource` and `OrderStore` ports.
 - `adapters/binance_c2c_history.py`: signed Binance C2C order history client; `adapters/sqlite_order_store.py`: SQLite store.

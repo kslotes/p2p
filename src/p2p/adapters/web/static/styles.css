@@ -49,6 +49,11 @@
   box-sizing: border-box;
 }
 
+/* `hidden` must win over display rules such as `.layout { display: grid }` */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -321,6 +326,119 @@ td.wrap {
 .note {
   margin: 0;
   font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ---------- tabs */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 -13px; /* sit on the topbar's bottom border */
+}
+
+.tab {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab:focus-visible,
+.button:focus-visible,
+.filters select:focus,
+.filters input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- order history */
+
+.history {
+  padding: 16px;
+}
+
+.history .panel h3 {
+  margin: 14px 0 4px;
+}
+
+.sync-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.button {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.button:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: default;
+}
+
+.history .note {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--neutral-bg);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 8px 0;
+}
+
+.filters label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.filters select,
+.filters input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 100%;
+}
+
+td[data-status="COMPLETED"] {
+  color: var(--buy);
+}
+td[data-status="CANCELLED"],
+td[data-status="CANCELLED_BY_SYSTEM"] {
   color: var(--muted);
 }
 

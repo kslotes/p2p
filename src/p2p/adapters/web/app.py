@@ -1,5 +1,5 @@
-"""FastAPI driving adapter: JSON snapshots, SSE live updates, round-trip fees
-and the static browser page at ``/``.
+"""FastAPI driving adapter: JSON snapshots, SSE live updates, round-trip fees,
+the local order history and the static browser page at ``/``.
 
 Money is serialized as decimal strings, never floats.
 """
@@ -10,7 +10,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
@@ -19,15 +19,20 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from p2p.adapters.web.order_sync_runner import OrderSyncRunner
 from p2p.adapters.web.poller import SnapshotPoller
-from p2p.application import GetMarketSnapshot
+from p2p.application import GetMarketSnapshot, OrderStore
 from p2p.application.monitor import Config
 from p2p.domain import Ad, estimate, round_trip
 from p2p.domain.fees import DEFAULT_NOTIONAL, MAX_NOTIONAL
+from p2p.domain.orders import Order, OrderSide, OrderStatus, OrderSummary, summarize
 
 KEEPALIVE_SECONDS = 15  # comment line so proxies and browsers keep the stream open
 PERCENT_PLACES = Decimal("0.0001")
 STATIC_DIR = Path(__file__).parent / "static"
+ASSET_PATTERN = r"^[A-Za-z0-9]{1,20}$"
+# Binance reports a commission on cancelled orders that was never charged.
+UNCHARGED_STATUSES = frozenset({OrderStatus.CANCELLED, OrderStatus.CANCELLED_BY_SYSTEM})
 
 
 def _dec(value: Decimal) -> str:
@@ -91,6 +96,58 @@ def snapshots_payload(poller: SnapshotPoller) -> dict[str, Any]:
     }
 
 
+def _order(order: Order) -> dict[str, Any]:
+    return {
+        "order_number": order.order_number,
+        "created_at": _time(order.created_at),
+        "side": order.side.value,
+        "asset": order.asset,
+        "fiat": order.fiat,
+        "amount": _dec(order.amount),
+        "unit_price": _dec(order.unit_price),
+        "total_price": _dec(order.total_price),
+        "fee": None if order.status in UNCHARGED_STATUSES else _dec(order.fee),
+        "role": order.role.value,
+        "status": order.status.value,
+        "counterparty": order.counterparty,
+        "pay_method": order.pay_method,
+    }
+
+
+def _totals(summary: OrderSummary) -> dict[str, Any]:
+    # No grand total of amounts or fees: it would mix assets and fiats.
+    return {
+        "count": summary.count,
+        "groups": [
+            {
+                "side": group.side.value,
+                "asset": group.asset,
+                "fiat": group.fiat,
+                "count": group.count,
+                "amount": _dec(group.amount),
+                "total_price": _dec(group.total_price),
+                "fees": _dec(group.fees),
+            }
+            for group in summary.groups
+        ],
+    }
+
+
+def sync_status(runner: OrderSyncRunner) -> dict[str, Any]:
+    return {
+        "configured": runner.configured,
+        "running": runner.running,
+        "interval_seconds": runner.interval if runner.configured else None,
+        "last_attempt": _time(runner.last_attempt),
+        "last_success": _time(runner.last_success),
+        "last_error": runner.last_error,
+    }
+
+
+def _day_start(day: date) -> datetime:
+    return datetime.combine(day, time(), tzinfo=UTC)
+
+
 def _event(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, separators=(',', ':'))}\n\n"
 
@@ -117,21 +174,29 @@ def create_app(
     config: Config,
     *,
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
+    orders: OrderStore | None = None,
+    order_sync: OrderSyncRunner | None = None,
 ) -> FastAPI:
+    """``orders`` is the local order database (None when there is none yet);
+    ``order_sync`` keeps it in step with Binance (not configured by default)."""
     poller = SnapshotPoller(use_case, config)
+    runner = order_sync if order_sync is not None else OrderSyncRunner(None)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await poller.start()
+        await runner.start()
         try:
             yield
         finally:
+            await runner.stop()
             await poller.stop()
             if on_shutdown is not None:
                 await on_shutdown()
 
     app = FastAPI(title="Binance P2P monitor", lifespan=lifespan)
     app.state.poller = poller
+    app.state.order_sync = runner
 
     @app.get("/api/snapshots")
     async def snapshots() -> dict[str, Any]:
@@ -179,6 +244,58 @@ def create_app(
             "fiat_result": _dec(scaled.fiat_result),
             "asset_result": _dec(scaled.asset_result),
         }
+
+    # Plain `def`: SQLite reads block, so FastAPI runs this in its threadpool.
+    @app.get("/api/orders")
+    def orders_endpoint(
+        asset: Annotated[
+            str | None, Query(pattern=ASSET_PATTERN, description="e.g. USDT.")
+        ] = None,
+        side: Annotated[
+            OrderSide | None, Query(description="Your side of the order.")
+        ] = None,
+        status: OrderStatus | None = None,
+        start: Annotated[
+            date | None,
+            Query(alias="from", description="First UTC day included (YYYY-MM-DD)."),
+        ] = None,
+        end: Annotated[
+            date | None,
+            Query(alias="to", description="Last UTC day included (YYYY-MM-DD)."),
+        ] = None,
+    ) -> dict[str, Any]:
+        if start is not None and end is not None and start > end:
+            raise HTTPException(status_code=422, detail="from must not be after to")
+        found: list[Order] = []
+        assets: list[str] = []
+        if orders is not None:
+            found = orders.query(
+                asset=asset.upper() if asset else None,
+                side=side,
+                status=status,
+                start=_day_start(start) if start else None,
+                end=_day_start(end + timedelta(days=1)) if end else None,
+            )
+            assets = sorted({order.asset for order in orders.query()})
+        return {
+            "orders": [_order(order) for order in found],
+            "totals": _totals(summarize(found)),
+            "assets": assets,
+            "sync": sync_status(runner),
+        }
+
+    @app.get("/api/orders/sync")
+    async def order_sync_status() -> dict[str, Any]:
+        return sync_status(runner)
+
+    @app.post("/api/orders/sync")
+    async def order_sync_now() -> dict[str, Any]:
+        if not runner.configured:
+            raise HTTPException(
+                status_code=409, detail="order history sync is not configured"
+            )
+        runner.trigger()  # no-op while a sync is already running
+        return sync_status(runner)
 
     # Mounted last so the /api routes above take precedence.
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

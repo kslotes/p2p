@@ -1,7 +1,9 @@
 "use strict";
 
 // Live monitor page: SSE from /api/stream, polling /api/snapshots as fallback.
-// Every value from the server is rendered with textContent (ad text is untrusted).
+// History tab: /api/orders with filters, sync status from /api/orders/sync.
+// Every value from the server is rendered with textContent (ad and order text
+// is untrusted).
 
 const SSE_RETRY_MS = 30000;
 const DEFAULT_POLL_MS = 15000;
@@ -368,5 +370,244 @@ function initCalculator() {
   $("calc").addEventListener("submit", (event) => event.preventDefault());
 }
 
+// ---------- tabs (monitor / history), remembered in the browser
+
+const TAB_STORAGE_KEY = "p2p.tab";
+const TABS = ["monitor", "history"];
+
+function readStoredTab() {
+  try {
+    return localStorage.getItem(TAB_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeTab(name) {
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, name);
+  } catch {
+    // Storage blocked: the page just opens on the monitor next time.
+  }
+}
+
+function showTab(name) {
+  for (const tab of TABS) {
+    const active = tab === name;
+    $(`tab-${tab}`).setAttribute("aria-selected", String(active));
+    $(`view-${tab}`).hidden = !active;
+  }
+  if (name === "history") startHistory();
+  else stopHistory();
+}
+
+function initTabs() {
+  for (const tab of TABS) {
+    $(`tab-${tab}`).addEventListener("click", () => {
+      storeTab(tab);
+      showTab(tab);
+    });
+  }
+  const stored = readStoredTab();
+  showTab(TABS.includes(stored) ? stored : "monitor");
+}
+
+// ---------- order history
+
+const SYNC_POLL_MS = 3000; // while a sync runs
+const SYNC_IDLE_POLL_MS = 60000; // otherwise, to pick up background syncs
+
+const fmtDateTime = (iso) =>
+  new Date(iso).toLocaleString([], {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+const fmtLabel = (value) => value.toLowerCase().replaceAll("_", " ");
+
+let historyTimer = null;
+let historyActive = false;
+let historyController = null;
+let lastSyncSeen = null; // last_success already reflected in the table
+
+function historyQuery() {
+  const query = new URLSearchParams();
+  for (const [key, id] of [
+    ["asset", "filter-asset"],
+    ["side", "filter-side"],
+    ["status", "filter-status"],
+    ["from", "filter-from"],
+    ["to", "filter-to"],
+  ]) {
+    const value = $(id).value;
+    if (value) query.set(key, value);
+  }
+  return query;
+}
+
+function renderSyncStatus(sync) {
+  const line = $("sync-status");
+  const button = $("sync-now");
+  $("history-setup").hidden = sync.configured;
+  button.hidden = !sync.configured;
+  button.disabled = sync.running;
+  if (!sync.configured) {
+    line.textContent = "Order sync not configured.";
+    return;
+  }
+  const parts = [];
+  if (sync.running) parts.push("Syncing with Binance...");
+  parts.push(
+    sync.last_success
+      ? `Last sync ${fmtDateTime(sync.last_success)}`
+      : "Not synced yet",
+  );
+  if (sync.interval_seconds) {
+    parts.push(`every ${Number((sync.interval_seconds / 60).toFixed(1))} min`);
+  } else {
+    parts.push("automatic sync off");
+  }
+  if (sync.last_error) parts.push(`last attempt failed: ${sync.last_error}`);
+  line.textContent = parts.join(" | ");
+}
+
+function renderAssetOptions(assets) {
+  const select = $("filter-asset");
+  const current = select.value;
+  const options = [el("option", { value: "" }, "All")];
+  for (const asset of assets) options.push(el("option", { value: asset }, asset));
+  select.replaceChildren(...options);
+  select.value = assets.includes(current) ? current : "";
+}
+
+function renderTotals(totals) {
+  const rows = totals.groups.length
+    ? totals.groups.map((group) =>
+        el(
+          "tr",
+          {},
+          el("td", { class: group.side === "BUY" ? "buy" : "sell" }, group.side),
+          el("td", {}, group.asset),
+          el("td", { class: "num" }, String(group.count)),
+          el("td", { class: "num" }, `${fmtQuantity(group.amount)} ${group.asset}`),
+          el("td", { class: "num" }, `${fmtMoney(group.total_price)} ${group.fiat}`),
+          el("td", { class: "num" }, `${fmtQuantity(group.fees)} ${group.asset}`),
+        ),
+      )
+    : [el("tr", {}, el("td", { colspan: "6", class: "muted" }, "No completed orders"))];
+  $("history-totals").replaceChildren(...rows);
+}
+
+function renderOrders(orders) {
+  $("history-count").textContent = `Orders (${orders.length})`;
+  const rows = orders.length
+    ? orders.map((order) =>
+        el(
+          "tr",
+          {},
+          el("td", {}, fmtDateTime(order.created_at)),
+          el("td", { class: order.side === "BUY" ? "buy" : "sell" }, order.side),
+          el("td", {}, order.asset),
+          el("td", { class: "num" }, fmtQuantity(order.amount)),
+          el("td", { class: "num" }, fmtMoney(order.unit_price)),
+          el("td", { class: "num" }, `${fmtMoney(order.total_price)} ${order.fiat}`),
+          el("td", { class: "num" }, order.fee == null ? "-" : fmtQuantity(order.fee)),
+          el("td", {}, fmtLabel(order.role)),
+          el("td", { "data-status": order.status }, fmtLabel(order.status)),
+          el("td", {}, order.counterparty),
+          el("td", {}, order.pay_method),
+        ),
+      )
+    : [el("tr", {}, el("td", { colspan: "11", class: "muted" }, "No orders"))];
+  $("history-rows").replaceChildren(...rows);
+}
+
+function showHistoryError(message) {
+  const box = $("history-error");
+  box.textContent = message;
+  box.hidden = !message;
+}
+
+async function loadHistory() {
+  historyController?.abort();
+  historyController = new AbortController();
+  try {
+    const response = await fetch(`/api/orders?${historyQuery()}`, {
+      cache: "no-store",
+      signal: historyController.signal,
+    });
+    // Never show the server's validation detail: it may echo stored data.
+    if (response.status === 422) {
+      showHistoryError("Invalid filter: check the dates (From must not be after To).");
+      return;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    showHistoryError("");
+    renderAssetOptions(body.assets);
+    renderTotals(body.totals);
+    renderOrders(body.orders);
+    renderSyncStatus(body.sync);
+    lastSyncSeen = body.sync.last_success;
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    showHistoryError("Order history unavailable (server unreachable).");
+  }
+}
+
+async function pollSyncStatus() {
+  let running = false;
+  try {
+    const response = await fetch("/api/orders/sync", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const sync = await response.json();
+    running = sync.running;
+    renderSyncStatus(sync);
+    if (sync.last_success !== lastSyncSeen) await loadHistory();
+  } catch {
+    // Keep the last rendered history; the next tick retries.
+  }
+  scheduleSyncPoll(running ? SYNC_POLL_MS : SYNC_IDLE_POLL_MS);
+}
+
+function scheduleSyncPoll(delay) {
+  clearTimeout(historyTimer);
+  historyTimer = historyActive ? setTimeout(pollSyncStatus, delay) : null;
+}
+
+async function syncNow() {
+  $("sync-now").disabled = true;
+  try {
+    const response = await fetch("/api/orders/sync", { method: "POST" });
+    if (response.ok) renderSyncStatus(await response.json());
+  } catch {
+    // The status poll below reports the outcome.
+  }
+  scheduleSyncPoll(SYNC_POLL_MS);
+}
+
+function startHistory() {
+  if (historyActive) return;
+  historyActive = true;
+  loadHistory();
+  scheduleSyncPoll(SYNC_POLL_MS);
+}
+
+function stopHistory() {
+  historyActive = false;
+  scheduleSyncPoll(0);
+}
+
+function initHistory() {
+  $("history-filters").addEventListener("change", loadHistory);
+  $("history-filters").addEventListener("submit", (event) => event.preventDefault());
+  $("sync-now").addEventListener("click", syncNow);
+}
+
 initCalculator();
+initHistory();
+initTabs();
 connectStream();

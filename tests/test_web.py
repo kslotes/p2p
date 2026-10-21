@@ -309,14 +309,13 @@ def test_round_trip_endpoint_rejects_invalid_input(params):
 
 
 def test_web_parse_args_reuses_monitor_flags_and_adds_host_and_port():
-    config, host, port = parse_args(
-        ["--asset", "usdt,btc", "--interval", "5", "--port", "9000"]
-    )
+    options = parse_args(["--asset", "usdt,btc", "--interval", "5", "--port", "9000"])
 
-    assert config.assets == ("USDT", "BTC")
-    assert config.interval == 5
-    assert (host, port) == ("127.0.0.1", 9000)
-    assert parse_args([])[1:] == ("127.0.0.1", 8000)
+    assert options.config.assets == ("USDT", "BTC")
+    assert options.config.interval == 5
+    assert (options.host, options.port) == ("127.0.0.1", 9000)
+    defaults = parse_args([])
+    assert (defaults.host, defaults.port) == ("127.0.0.1", 8000)
 
 
 def test_root_serves_the_browser_monitor_page_and_its_assets():
