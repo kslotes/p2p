@@ -40,7 +40,7 @@ Out of scope: trading or ad management, alerts, price history, multi-user, deplo
 ## Tasks
 
 - [x] T1 Domain + application: `Order` model, enums, aggregation; ports `OrderHistorySource`, `OrderStore`; `SyncOrderHistory` use case with 30-day windows, 6-month backfill, incremental cursor and non-final re-check. Tests with fakes.
-- [ ] T2 Binance C2C history adapter: signing, server-time offset, pagination, both trade types, error mapping (clear message for unauthorized IP / bad key / timestamp). Tests with `httpx.MockTransport` + synthetic fixture.
+- [x] T2 Binance C2C history adapter: signing, server-time offset, pagination, both trade types, error mapping (clear message for unauthorized IP / bad key / timestamp). Tests with `httpx.MockTransport` + synthetic fixture.
 - [ ] T3 SQLite order store: schema, idempotent upsert, Decimal as TEXT, filtered query, last-sync cursor. Tests on `:memory:`.
 - [ ] T4 `p2p-sync` CLI + `.env` loader + `data/` gitignore + README section (API key setup: read-only, IP restriction).
 - [ ] T5 Web: periodic sync in the app lifecycle when credentials exist, `/api/orders` (filters: asset, side, status, date range; totals over COMPLETED), sync status endpoint/field, History tab UI.
@@ -63,6 +63,7 @@ Out of scope: trading or ad management, alerts, price history, multi-user, deplo
 ## Progress
 
 - T1 done. Route: delegated writer (trigger: 2+ non-trivial files across domain and application). RED: `uv run pytest -q` -> 2 collection errors (`p2p.domain.orders` / `p2p.application.order_sync` missing). GREEN: `uv run pytest -q` -> 111 passed; ruff check and format clean. Decisions: new `OrderSide` enum (user's own side, distinct from the advertiser `Side`); unknown Binance statuses map to `OrderStatus.UNKNOWN`, which is non-final (re-checked every sync) and never counted in totals; `Order.fee` is the commission of the user's role (null -> 0); `effective_maker_fee_rate` skips makers with a null commission; sync overlap is 1 day, windows are fetched oldest first and upserted per window (a failure keeps earlier progress), orders seen twice in one run are upserted once. New modules are imported by full path (`p2p.domain.orders`, `p2p.application.order_sync`); package `__init__` re-exports were outside the edit surface. Commit: `feat(orders): add order model, aggregation and history sync use case`.
+- T2 done. Route: delegated writer (trigger: 2+ non-trivial files, adapter plus tests and fixture). RED: `uv run pytest -q` -> 1 collection error (`p2p.adapters.binance_c2c_history` missing). GREEN: `uv run pytest -q` -> 130 passed; ruff check and format clean. Decisions: `OrderHistoryError` lives in the domain so the application can catch it; server-time offset cached per adapter instance, reset and retried once on -1021; paging stops at `total`, on an empty page, or (without a total) on a short page, and raises after 100 pages; auth errors (-2014, -2015, HTTP 401) name key, read permission and the IP access restriction; transport errors report only the exception class (messages can echo the signed URL); `repr` shows only the base URL; ranges over 30 days raise `ValueError`. Synthetic fixture `tests/fixtures/c2c_order_history_sell.json`. Commit: `feat(orders): add signed Binance C2C order history adapter`.
 
 ## Next step
 
