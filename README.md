@@ -124,9 +124,11 @@ BINANCE_API_SECRET=your-api-secret
 # P2P_DB_PATH=data/p2p.sqlite
 ```
 
-One `KEY=VALUE` per line; blank lines and `#` comments are ignored, and
-surrounding quotes are optional. Real environment variables with the same
-names win over the file. The key and secret are never printed or logged.
+One `KEY=VALUE` per line; blank lines and lines starting with `#` are
+ignored, and surrounding quotes are optional. A `#` after a value is part of
+the value, so do not put comments on the same line as the key or secret.
+Non-empty environment variables with the same names win over the file. The
+key and secret are never printed or logged.
 
 ### 3. Run it
 
@@ -142,7 +144,8 @@ uv run p2p-sync --db other.sqlite --env-file C:/secrets/binance.env
 
 It prints the windows fetched, rows fetched, orders written, total orders
 stored and the newest order date. Exit codes: `0` synced, `1` Binance or
-network error (the message says what to fix), `2` no credentials configured.
+network error (the message says what to fix) or interrupted with Ctrl+C
+(windows already synced are kept), `2` no credentials configured.
 
 How it behaves:
 
