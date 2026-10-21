@@ -39,6 +39,8 @@ from p2p.config import (
 )
 
 SYNC_TIMEOUT_SECONDS = 20
+# The browser has room for more ads than the terminal (which keeps 5).
+DEFAULT_WEB_ROWS = 10
 # httpx logs every request URL at INFO, and signed URLs carry the signature.
 QUIET_LOGGERS = ("httpx", "httpcore")
 
@@ -60,7 +62,7 @@ def parse_args(argv: Sequence[str] | None = None) -> WebOptions:
         description="Live Binance P2P price monitor in the browser "
         "(public data, read-only), plus your synced order history.",
     )
-    add_monitor_arguments(parser)
+    add_monitor_arguments(parser, default_rows=DEFAULT_WEB_ROWS)
     parser.add_argument(
         "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)."
     )

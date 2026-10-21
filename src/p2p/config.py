@@ -104,7 +104,9 @@ def _split_values(values: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def add_monitor_arguments(parser: argparse.ArgumentParser) -> None:
+def add_monitor_arguments(
+    parser: argparse.ArgumentParser, *, default_rows: int = 5
+) -> None:
     """Flags shared by every monitor entrypoint (terminal and web)."""
     parser.add_argument(
         "--asset",
@@ -114,7 +116,10 @@ def add_monitor_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--fiat", default="ARS", help="Fiat currency (default: ARS).")
     parser.add_argument(
-        "--rows", type=int, default=5, help="Ads shown per side (default: 5)."
+        "--rows",
+        type=int,
+        default=default_rows,
+        help=f"Ads shown per side (default: {default_rows}).",
     )
     parser.add_argument(
         "--interval",

@@ -54,7 +54,8 @@ uv run p2p-web --asset USDT,BTC --interval 30 --port 8765
 ```
 
 It takes the same `--asset`, `--fiat`, `--rows`, `--interval` and
-`--pay-type` flags as `p2p-monitor`, plus:
+`--pay-type` flags as `p2p-monitor` (except that `--rows` defaults to `10`
+here), plus:
 
 | Flag | Default | Meaning |
 |------|---------|---------|
@@ -68,6 +69,7 @@ How it behaves:
 
 - One shared poller fetches every asset each interval; browsers read its cache, so opening more tabs does not add Binance requests. The first fetch runs before the server starts accepting requests.
 - Panels update live over Server-Sent Events and fall back to polling if the stream drops. Labels match the terminal (see above).
+- Each panel shows sellers on the left and buyers on the right (stacked below 1280px). The "Pay" column shows the first payment method plus `+N`; hover it for the full list.
 - A failed refresh shows the error in that asset's panel and keeps the last good data.
 
 | Endpoint | Returns |

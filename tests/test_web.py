@@ -11,6 +11,7 @@ from p2p.adapters.web import poller as poller_module
 from p2p.adapters.web.main import parse_args
 from p2p.application import GetMarketSnapshot
 from p2p.application.monitor import Config
+from p2p.cli import parse_args as cli_parse_args
 from p2p.domain import Ad, Advertiser, MarketDataError, Side
 
 
@@ -316,6 +317,21 @@ def test_web_parse_args_reuses_monitor_flags_and_adds_host_and_port():
     assert (options.host, options.port) == ("127.0.0.1", 9000)
     defaults = parse_args([])
     assert (defaults.host, defaults.port) == ("127.0.0.1", 8000)
+
+
+def test_web_shows_ten_ads_per_side_by_default_while_the_cli_keeps_five():
+    assert parse_args([]).config.rows == 10
+    assert parse_args(["--rows", "3"]).config.rows == 3
+    assert cli_parse_args([]).rows == 5
+
+
+def test_page_script_lays_every_asset_out_in_two_columns_with_compact_methods():
+    script = TestClient(make_app(FakeMarketData())).get("/app.js").text
+
+    assert "TWO_COLUMN_ASSETS" not in script
+    assert 'el("div", { class: "sides" }, ...sides)' in script
+    assert "methods-compact" in script
+    assert "Payment methods" not in script
 
 
 def test_root_serves_the_browser_monitor_page_and_its_assets():

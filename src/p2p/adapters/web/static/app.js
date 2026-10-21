@@ -7,7 +7,9 @@
 
 const SSE_RETRY_MS = 30000;
 const DEFAULT_POLL_MS = 15000;
-const MAX_PAYMENT_METHODS_SHOWN = 3;
+// Sellers and buyers sit side by side, so only the first payment method fits;
+// the full list is in the hover tooltip.
+const MAX_PAYMENT_METHODS_SHOWN = 1;
 const FEE_STORAGE_KEY = "p2p.makerFeePct";
 const DEFAULT_FEE = "0.20";
 const DEFAULT_FIAT = "ARS";
@@ -87,6 +89,14 @@ function advertiserCell(advertiser) {
   return cell;
 }
 
+function methodsCell(methods) {
+  return el(
+    "td",
+    { class: "methods-compact", title: methods.join(", ") },
+    fmtMethods(methods),
+  );
+}
+
 function adsTable(title, ads, fiat, sideClass) {
   const head = el(
     "tr",
@@ -94,7 +104,7 @@ function adsTable(title, ads, fiat, sideClass) {
     el("th", { class: "num" }, `Price ${fiat}`),
     el("th", { class: "num" }, "Available"),
     el("th", { class: "num" }, `Limits ${fiat}`),
-    el("th", {}, "Payment methods"),
+    el("th", {}, "Pay"),
     el("th", {}, "Advertiser"),
     el("th", { class: "num" }, "Orders 30d"),
   );
@@ -110,7 +120,7 @@ function adsTable(title, ads, fiat, sideClass) {
             { class: "num" },
             `${fmtCompact(ad.min_amount)}-${fmtCompact(ad.max_amount)}`,
           ),
-          el("td", { class: "wrap" }, fmtMethods(ad.payment_methods)),
+          methodsCell(ad.payment_methods),
           advertiserCell(ad.advertiser),
           el(
             "td",
@@ -120,14 +130,16 @@ function adsTable(title, ads, fiat, sideClass) {
         ),
       )
     : [el("tr", {}, el("td", { colspan: "6", class: "muted" }, "No ads"))];
-  return [
+  return el(
+    "div",
+    { class: "side" },
     el("h3", { class: sideClass }, title),
     el(
       "div",
       { class: "table-wrap" },
       el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows)),
     ),
-  ];
+  );
 }
 
 function assetPanel(entry) {
@@ -166,9 +178,12 @@ function assetPanel(entry) {
         ),
         el("span", {}, "Spread: ", el("strong", {}, spread)),
       ),
-      ...adsTable("Sellers (you buy from them)", entry.asks, entry.fiat, "buy"),
-      ...adsTable("Buyers (you sell to them)", entry.bids, entry.fiat, "sell"),
     );
+    const sides = [
+      adsTable("Sellers (you buy from them)", entry.asks, entry.fiat, "buy"),
+      adsTable("Buyers (you sell to them)", entry.bids, entry.fiat, "sell"),
+    ];
+    panel.append(el("div", { class: "sides" }, ...sides));
   }
   if (entry.error) {
     const stale = hasData ? " (showing last good data)" : "";

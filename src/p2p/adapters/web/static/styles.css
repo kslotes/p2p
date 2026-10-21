@@ -189,9 +189,22 @@ th.num {
   font-variant-numeric: tabular-nums;
 }
 
-td.wrap {
-  white-space: normal;
-  min-width: 140px;
+/* Sellers left, buyers right; stacked again when half the panel is too narrow. */
+.sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+.side {
+  min-width: 0;
+}
+
+/* First payment method only; the full list lives in the title tooltip. */
+td.methods-compact {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
 }
 
 .verified {
@@ -448,6 +461,12 @@ td[data-status="COMPLETED"] {
 td[data-status="CANCELLED"],
 td[data-status="CANCELLED_BY_SYSTEM"] {
   color: var(--muted);
+}
+
+@media (max-width: 1280px) {
+  .sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 860px) {
