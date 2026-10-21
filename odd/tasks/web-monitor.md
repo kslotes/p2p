@@ -97,6 +97,7 @@ Out of scope: history persistence, alerts, auth, deployment.
 
 ## Next step
 
-- T7-T8 merged: local `main` fast-forwarded to `e1bd5d3` (2026-10-20).
-- T9-T10 on branch `feat/merchant-badge-estimate` (from `main`). Live probe 2026-10-20: verified advertisers come as `userType: "merchant"`, `userIdentity` `MASS_MERCHANT` or `BLOCK_MERCHANT`, `badges` `["Ordinary"]`/`["Block"]`; regular users `userType: "user"`, `userIdentity: ""`.
-- T9-T10 done (`ae35ebc` + T10 commit). Next: manual browser check (tick + estimate row, light/dark), then the user's call on merging to `main`.
+- All tasks T1-T10 merged to `main` and pushed to `origin/main` (HEAD `f55e13d`, includes the follow-up fix that stacks the estimate fiat/USDT amounts on separate lines).
+- Live probe 2026-10-20: verified advertisers come as `userType: "merchant"`, `userIdentity` `MASS_MERCHANT` or `BLOCK_MERCHANT`, `badges` `["Ordinary"]`/`["Block"]`; regular users `userType: "user"`, `userIdentity: ""`.
+- Manual browser check confirmed by the user on 2026-10-20: verified tick and estimate row render correctly in light and dark themes.
+- Feature closed. Follow-up work: order history tracker (`odd/tasks/order-history.md`).
