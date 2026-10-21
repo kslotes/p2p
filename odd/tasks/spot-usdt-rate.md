@@ -37,7 +37,7 @@ Out of scope: terminal CLI (`p2p-monitor`) display, calculator changes.
 
 ## Delivery
 
-- Branch `feat/spot-usdt-rate` from `main`. Forecast ~300 authored lines (< 400): single work unit.
+- Work directly on `main` (user preference, see `order-history`). Forecast ~300 authored lines (< 400): single work unit. Commits were first made on a stray `feat/spot-usdt-rate` branch by mistake, then fast-forwarded into `main` and the branch deleted.
 - RDD: off (global). Delivery `disabled/unmanaged`.
 
 ## Progress / Evidence
