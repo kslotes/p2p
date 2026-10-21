@@ -4,7 +4,9 @@ Read-only Binance P2P price monitor for the terminal and the browser. It polls t
 (unauthenticated) P2P ad search endpoint and shows, per asset, the best price
 to buy, the best price to sell, the spread, and the top ads on each side.
 
-No API keys, no account access, no ad management.
+The monitor needs no API keys, account access or ad management. The optional
+[order history sync](#order-history-sync) reads your own orders with a
+read-only key.
 
 ## Usage
 
@@ -96,6 +98,62 @@ At 0.35% the same pair is a LOSS (-3.31).
 > percentage that depends on the pair (public sources show 0-0.35%). Check the
 > fee the Binance app shows when you publish an ad and enter that value.
 
+## Order history sync
+
+`p2p-sync` copies your own Binance P2P orders into a local SQLite database.
+Unlike the monitor, it needs an API key, and that key only ever reads.
+
+### 1. Create a read-only API key
+
+1. In Binance: **Account > API Management > Create API** (system generated).
+2. Leave **only "Enable Reading"** checked. Never enable trading, withdrawals
+   or transfers: the sync does not need them.
+3. Choose **Restrict access to trusted IPs only** and add your public IP.
+   Home connections often get a new IP from time to time; when `p2p-sync`
+   reports that Binance rejected the API key (it mentions the IP access
+   restriction), look up your current public IP and update it in Binance.
+
+### 2. Put the key in `.env`
+
+Create `.env` in the directory you run the command from (it is gitignored):
+
+```sh
+BINANCE_API_KEY=your-api-key
+BINANCE_API_SECRET=your-api-secret
+# Optional: database location (default data/p2p.sqlite)
+# P2P_DB_PATH=data/p2p.sqlite
+```
+
+One `KEY=VALUE` per line; blank lines and `#` comments are ignored, and
+surrounding quotes are optional. Real environment variables with the same
+names win over the file. The key and secret are never printed or logged.
+
+### 3. Run it
+
+```sh
+uv run p2p-sync
+uv run p2p-sync --db other.sqlite --env-file C:/secrets/binance.env
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--db` | `$P2P_DB_PATH` or `data/p2p.sqlite` | SQLite database file (created on first run). |
+| `--env-file` | `./.env` | File holding the credentials. |
+
+It prints the windows fetched, rows fetched, orders written, total orders
+stored and the newest order date. Exit codes: `0` synced, `1` Binance or
+network error (the message says what to fix), `2` no credentials configured.
+
+How it behaves:
+
+- **Binance only serves the last 6 months.** The first run backfills those
+  6 months; later runs only re-read from the newest stored order (and the
+  oldest still-open one, so status changes land). Orders already in the
+  local database are kept forever, so run it at least every few months.
+- Re-running is safe: orders are keyed by order number and updated in place.
+- The database lives at `data/p2p.sqlite` by default (gitignored); amounts
+  are stored as exact decimal text.
+
 ## Layout
 
 Hexagonal, inside `src/p2p`:
@@ -105,8 +163,12 @@ Hexagonal, inside `src/p2p`:
 - `adapters/binance_public.py`: httpx + pydantic implementation of the port.
 - `domain/fees.py`: pure round-trip maker fee calculator (`round_trip`, `Outcome`).
 - `adapters/web/`: FastAPI app (`app.py`), shared background poller (`poller.py`), `p2p-web` entrypoint (`main.py`) and the static page (`static/`, vanilla JS, no build step).
-- `config.py`: monitor flags and their validation, shared by `p2p-monitor` and `p2p-web`.
+- `domain/orders.py`: your own P2P `Order`s and pure aggregation (totals, effective maker fee rate).
+- `application/order_sync.py`: `SyncOrderHistory` use case over the `OrderHistorySource` and `OrderStore` ports.
+- `adapters/binance_c2c_history.py`: signed Binance C2C order history client; `adapters/sqlite_order_store.py`: SQLite store.
+- `config.py`: monitor flags and their validation, shared by `p2p-monitor` and `p2p-web`; `.env` credentials loader and database path.
 - `cli.py`: `p2p-monitor` entrypoint, refresh loop and rich rendering.
+- `sync_cli.py`: `p2p-sync` entrypoint.
 
 ## Development
 

@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 p2p-monitor = "p2p.cli:main"
 p2p-web = "p2p.adapters.web.main:main"
+p2p-sync = "p2p.sync_cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.2,<0.14.0"]

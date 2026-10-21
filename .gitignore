@@ -15,3 +15,7 @@ wheels/
 
 # Local config and secrets
 .env
+
+# Local order database
+data/
+*.sqlite
