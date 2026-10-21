@@ -97,6 +97,17 @@ function methodsCell(methods) {
   );
 }
 
+// Implied fiat per USDT of a BTC/ETH price; the API sends null for stablecoins
+// and while no spot price is known, and el() skips the null child.
+function usdtRate(rate, fiat) {
+  if (rate == null) return null;
+  return el(
+    "span",
+    { class: "usdt-rate", title: "Price / Binance spot price in USDT" },
+    `(≈ ${fmtMoney(rate)} ${fiat}/USDT)`,
+  );
+}
+
 function adsTable(title, ads, fiat, sideClass) {
   const head = el(
     "tr",
@@ -113,7 +124,12 @@ function adsTable(title, ads, fiat, sideClass) {
         el(
           "tr",
           {},
-          el("td", { class: `num ${sideClass}` }, fmtMoney(ad.price)),
+          el(
+            "td",
+            { class: `num ${sideClass}` },
+            fmtMoney(ad.price),
+            usdtRate(ad.usdt_rate, fiat),
+          ),
           el("td", { class: "num" }, fmtQuantity(ad.available)),
           el(
             "td",
@@ -169,12 +185,14 @@ function assetPanel(entry) {
           {},
           "Best buy price (lowest ask): ",
           el("strong", { class: "buy" }, fmtMoney(entry.best_buy)),
+          usdtRate(entry.best_buy_usdt_rate, entry.fiat),
         ),
         el(
           "span",
           {},
           "Best sell price (highest bid): ",
           el("strong", { class: "sell" }, fmtMoney(entry.best_sell)),
+          usdtRate(entry.best_sell_usdt_rate, entry.fiat),
         ),
         el("span", {}, "Spread: ", el("strong", {}, spread)),
       ),
@@ -200,6 +218,7 @@ function render(payload) {
   $("updated").textContent = fmtTime(payload.updated_at);
   const settings = [`refresh every ${payload.interval}s`];
   if (payload.pay_types.length) settings.push(`pay types: ${payload.pay_types.join(", ")}`);
+  if (payload.spot_error) settings.push(`spot price error: ${payload.spot_error}`);
   $("settings").textContent = `| ${settings.join(" | ")}`;
   pollMs = payload.interval * 1000 || DEFAULT_POLL_MS;
   calcFiat = payload.fiat || DEFAULT_FIAT;

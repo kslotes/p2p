@@ -85,6 +85,7 @@ def test_snapshots_endpoint_serializes_both_sides_with_decimal_strings():
     assert [ad["price"] for ad in usdt["asks"]] == ["1619.00", "1625.50"]
     assert usdt["bids"][0] == {
         "price": "1590.00",
+        "usdt_rate": None,  # stablecoins need no conversion
         "available": "1234.5",
         "min_amount": "1000",
         "max_amount": "250000",
@@ -169,11 +170,11 @@ def test_poller_loop_survives_an_unexpected_refresh_error(monkeypatch, caplog):
     real_refresh = poller_module.refresh
     failures = []
 
-    async def flaky_refresh(*args):
+    async def flaky_refresh(*args, **kwargs):
         if not failures:
             failures.append(True)
             raise RuntimeError("boom")
-        await real_refresh(*args)
+        await real_refresh(*args, **kwargs)
 
     async def scenario() -> SnapshotPoller:
         config = replace(make_config("USDT"), interval=0.01)
@@ -348,3 +349,63 @@ def test_root_serves_the_browser_monitor_page_and_its_assets():
     assert script.status_code == 200 and "EventSource" in script.text
     assert styles.status_code == 200
     assert client.get("/api/round-trip?sell=1&rebuy=1&fee_pct=0").status_code == 200
+
+
+class FakeSpot:
+    def __init__(self, prices: dict[str, Decimal]) -> None:
+        self.prices = prices
+        self.failing = False
+
+    async def fetch_usdt_prices(self, assets):
+        if self.failing:
+            raise MarketDataError("spot is down")
+        return {asset: self.prices[asset] for asset in assets}
+
+
+def test_snapshots_add_the_implied_usdt_rate_for_non_stablecoins():
+    spot = FakeSpot({"BTC": Decimal(1000)})
+    app = create_app(GetMarketSnapshot(FakeMarketData()), make_config(), spot=spot)
+
+    with TestClient(app) as client:
+        payload = client.get("/api/snapshots").json()
+
+    assert payload["spot_error"] is None
+    btc, usdt = asset_entry(payload, "BTC"), asset_entry(payload, "USDT")
+    assert btc["spot_price"] == "1000"
+    assert [ad["usdt_rate"] for ad in btc["asks"]] == ["1.62", "1.63"]
+    assert btc["bids"][0]["usdt_rate"] == "1.59"
+    assert btc["best_buy_usdt_rate"] == "1.62"
+    assert btc["best_sell_usdt_rate"] == "1.59"
+    assert usdt["spot_price"] is None
+    assert usdt["best_buy_usdt_rate"] is None and usdt["best_sell_usdt_rate"] is None
+    assert all(ad["usdt_rate"] is None for ad in usdt["asks"] + usdt["bids"])
+
+
+def test_snapshots_without_a_spot_port_have_no_rates():
+    with TestClient(make_app(FakeMarketData())) as client:
+        payload = client.get("/api/snapshots").json()
+
+    assert payload["spot_error"] is None
+    btc = asset_entry(payload, "BTC")
+    assert btc["spot_price"] is None
+    assert btc["best_buy_usdt_rate"] is None and btc["best_sell_usdt_rate"] is None
+    assert btc["asks"][0]["usdt_rate"] is None
+
+
+def test_spot_failure_is_reported_and_keeps_the_last_good_rates():
+    spot = FakeSpot({"BTC": Decimal(1000)})
+    app = create_app(GetMarketSnapshot(FakeMarketData()), make_config(), spot=spot)
+
+    with TestClient(app) as client:
+        spot.failing = True
+        client.portal.call(app.state.poller.refresh)
+        payload = client.get("/api/snapshots").json()
+
+    assert "spot is down" in payload["spot_error"]
+    assert asset_entry(payload, "BTC")["best_buy_usdt_rate"] == "1.62"
+
+
+def test_page_script_renders_the_implied_usdt_rate():
+    script = TestClient(make_app(FakeMarketData())).get("/app.js").text
+
+    assert "usdt_rate" in script and "/USDT" in script

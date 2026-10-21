@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol
 
 from p2p.domain import Ad, Side
@@ -18,6 +19,15 @@ class MarketDataPort(Protocol):
         """Return up to ``rows`` ads published by advertisers on ``side``.
 
         Raises ``MarketDataError`` when data cannot be obtained.
+        """
+        ...
+
+
+class SpotPricePort(Protocol):
+    async def fetch_usdt_prices(self, assets: tuple[str, ...]) -> dict[str, Decimal]:
+        """Return the spot price in USDT of every asset, keyed as given.
+
+        Raises ``MarketDataError`` when the prices cannot be obtained.
         """
         ...
 

@@ -19,9 +19,11 @@ from p2p.domain.orders import (
     effective_maker_fee_rate,
     summarize,
 )
+from p2p.domain.spot import STABLECOINS, implied_usdt_rate, is_stablecoin
 
 __all__ = [
     "FINAL_STATUSES",
+    "STABLECOINS",
     "Ad",
     "Advertiser",
     "Estimate",
@@ -40,6 +42,8 @@ __all__ = [
     "Spread",
     "effective_maker_fee_rate",
     "estimate",
+    "implied_usdt_rate",
+    "is_stablecoin",
     "round_trip",
     "summarize",
 ]

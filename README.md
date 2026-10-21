@@ -71,11 +71,12 @@ How it behaves:
 - Panels update live over Server-Sent Events and fall back to polling if the stream drops. Labels match the terminal (see above).
 - Each panel shows sellers on the left and buyers on the right (stacked below 1280px). The "Pay" column shows the first payment method plus `+N`; hover it for the full list.
 - A failed refresh shows the error in that asset's panel and keeps the last good data.
+- Non-stablecoin assets (e.g. BTC, ETH) show the implied rate after every ad price and the best buy/sell prices: `150,000,000.00 (≈ 1,500.00 ARS/USDT)`, the ad price divided by the Binance spot price in USDT (`GET https://api.binance.com/api/v3/ticker/price`, fetched once per refresh with the ads). Stablecoins (USDT, USDC, FDUSD, DAI, TUSD) show none. If the spot request fails the last good spot prices stay in use and the error appears next to the refresh settings.
 
 | Endpoint | Returns |
 |----------|---------|
 | `GET /` | The monitor page. |
-| `GET /api/snapshots` | Latest snapshot per asset (JSON, money as decimal strings). |
+| `GET /api/snapshots` | Latest snapshot per asset (JSON, money as decimal strings). Per asset `spot_price` (USDT), `best_buy_usdt_rate` / `best_sell_usdt_rate` and per ad `usdt_rate`, all `null` for stablecoins or without a spot price; top-level `spot_error`. |
 | `GET /api/stream` | The same payload as SSE: once on connect, then after every refresh. |
 | `GET /api/round-trip?sell=&rebuy=&fee_pct=[&amount=]` | Calculator result; `fee_pct` is a percent (`0.2` = 0.20%); `amount` (default 1000, max 1,000,000,000) sizes the estimate. 422 on invalid input. |
 | `GET /api/orders[?asset=&side=&status=&from=&to=]` | Stored orders, newest first (money as decimal strings, times in ISO UTC), totals over the COMPLETED ones, every stored asset and the sync status. `from`/`to` are UTC days (`YYYY-MM-DD`), both included. 422 on invalid filters. |
@@ -201,6 +202,7 @@ Hexagonal, inside `src/p2p`:
 - `application/`: `MarketDataPort` protocol, the `GetMarketSnapshot` use case and the shared live-monitor state (`monitor.py`: `Config`, `MonitorState`, `refresh`).
 - `adapters/binance_public.py`: httpx + pydantic implementation of the port.
 - `domain/fees.py`: pure round-trip maker fee calculator (`round_trip`, `Outcome`).
+- `domain/spot.py`: implied fiat-per-USDT rate and the stablecoin set; `adapters/binance_spot.py`: Binance spot prices behind the `SpotPricePort` (web UI only).
 - `adapters/web/`: FastAPI app (`app.py`), shared background poller (`poller.py`), background order sync (`order_sync_runner.py`), `p2p-web` entrypoint (`main.py`) and the static page (`static/`, vanilla JS, no build step).
 - `domain/orders.py`: your own P2P `Order`s and pure aggregation (totals, effective maker fee rate).
 - `application/order_sync.py`: `SyncOrderHistory` use case over the `OrderHistorySource` and `OrderStore` ports.

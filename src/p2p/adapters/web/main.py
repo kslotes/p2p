@@ -18,6 +18,7 @@ import uvicorn
 
 from p2p.adapters.binance_c2c_history import BinanceC2COrderHistory
 from p2p.adapters.binance_public import BinancePublicMarketData
+from p2p.adapters.binance_spot import BinancePublicSpot
 from p2p.adapters.sqlite_order_store import SqliteOrderStore
 from p2p.adapters.web.app import create_app
 from p2p.adapters.web.order_sync_runner import DEFAULT_SYNC_MINUTES, OrderSyncRunner
@@ -169,6 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         on_shutdown=shutdown,
         orders=store,
         order_sync=order_sync,
+        spot=BinancePublicSpot(client),
     )
     # Open SSE streams never end on their own; cap the wait on Ctrl+C.
     uvicorn.run(app, host=options.host, port=options.port, timeout_graceful_shutdown=2)

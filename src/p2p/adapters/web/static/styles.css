@@ -199,6 +199,20 @@ th.num {
   min-width: 0;
 }
 
+/* Implied fiat per USDT after BTC/ETH prices: own line in ad cells, inline in the summary. */
+.usdt-rate {
+  margin-left: 0.35em;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+td .usdt-rate {
+  display: block;
+  margin-left: 0;
+}
+
 /* First payment method only; the full list lives in the title tooltip. */
 td.methods-compact {
   max-width: 7.5rem;

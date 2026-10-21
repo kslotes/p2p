@@ -21,9 +21,9 @@ from fastapi.staticfiles import StaticFiles
 
 from p2p.adapters.web.order_sync_runner import OrderSyncRunner
 from p2p.adapters.web.poller import SnapshotPoller
-from p2p.application import GetMarketSnapshot, OrderStore
+from p2p.application import GetMarketSnapshot, OrderStore, SpotPricePort
 from p2p.application.monitor import Config
-from p2p.domain import Ad, estimate, round_trip
+from p2p.domain import Ad, estimate, implied_usdt_rate, round_trip
 from p2p.domain.fees import DEFAULT_NOTIONAL, MAX_NOTIONAL, fee_percent
 from p2p.domain.orders import (
     Order,
@@ -50,9 +50,17 @@ def _time(value: datetime | None) -> str | None:
     return value.isoformat(timespec="seconds") if value else None
 
 
-def _ad(ad: Ad) -> dict[str, Any]:
+def _usdt_rate(ad: Ad | None, spot: Decimal | None) -> str | None:
+    """Fiat per USDT implied by ``ad``; None without an ad or a spot price."""
+    if ad is None or spot is None or spot <= 0:
+        return None
+    return _dec(implied_usdt_rate(price=ad.price, spot=spot))
+
+
+def _ad(ad: Ad, spot: Decimal | None) -> dict[str, Any]:
     return {
         "price": _dec(ad.price),
+        "usdt_rate": _usdt_rate(ad, spot),
         "available": _dec(ad.available),
         "min_amount": _dec(ad.min_amount),
         "max_amount": _dec(ad.max_amount),
@@ -68,11 +76,17 @@ def _ad(ad: Ad) -> dict[str, Any]:
 
 
 def snapshots_payload(poller: SnapshotPoller) -> dict[str, Any]:
-    """Latest cached view of every configured asset, in configured order."""
+    """Latest cached view of every configured asset, in configured order.
+
+    Non-stablecoins with a known USDT spot price also get the implied fiat per
+    USDT rate of every ad (``usdt_rate``) and of the best prices; stablecoins
+    have no spot price, so those fields are null.
+    """
     config, state = poller.config, poller.state
     assets = []
     for asset in config.assets:
         snapshot = state.snapshots.get(asset)
+        spot = state.spot_prices.get(asset)
         ask = snapshot.best_ask if snapshot else None
         bid = snapshot.best_bid if snapshot else None
         spread = snapshot.spread if snapshot else None
@@ -82,14 +96,17 @@ def snapshots_payload(poller: SnapshotPoller) -> dict[str, Any]:
                 "fiat": config.fiat,
                 "best_buy": _dec(ask.price) if ask else None,
                 "best_sell": _dec(bid.price) if bid else None,
+                "spot_price": _dec(spot) if spot is not None else None,
+                "best_buy_usdt_rate": _usdt_rate(ask, spot),
+                "best_sell_usdt_rate": _usdt_rate(bid, spot),
                 "spread": {
                     "absolute": _dec(spread.absolute),
                     "percentage": _dec(spread.percentage.quantize(PERCENT_PLACES)),
                 }
                 if spread
                 else None,
-                "asks": [_ad(ad) for ad in snapshot.asks] if snapshot else [],
-                "bids": [_ad(ad) for ad in snapshot.bids] if snapshot else [],
+                "asks": [_ad(ad, spot) for ad in snapshot.asks] if snapshot else [],
+                "bids": [_ad(ad, spot) for ad in snapshot.bids] if snapshot else [],
                 "updated_at": _time(state.snapshot_times.get(asset)),
                 "error": state.errors.get(asset),
             }
@@ -99,6 +116,7 @@ def snapshots_payload(poller: SnapshotPoller) -> dict[str, Any]:
         "interval": config.interval,
         "pay_types": list(config.pay_types),
         "updated_at": _time(state.updated_at),
+        "spot_error": state.spot_error,
         "assets": assets,
     }
 
@@ -183,10 +201,12 @@ def create_app(
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
     orders: OrderStore | None = None,
     order_sync: OrderSyncRunner | None = None,
+    spot: SpotPricePort | None = None,
 ) -> FastAPI:
     """``orders`` is the local order database (None when there is none yet);
-    ``order_sync`` keeps it in step with Binance (not configured by default)."""
-    poller = SnapshotPoller(use_case, config)
+    ``order_sync`` keeps it in step with Binance (not configured by default);
+    ``spot`` supplies USDT spot prices for the implied rates (none by default)."""
+    poller = SnapshotPoller(use_case, config, spot)
     runner = order_sync if order_sync is not None else OrderSyncRunner(None)
 
     @asynccontextmanager
