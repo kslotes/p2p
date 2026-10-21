@@ -51,3 +51,4 @@ Out of scope: terminal CLI (`p2p-monitor`) display, calculator changes.
 ## Next step
 
 Parent review of T1, then the work-unit commit.
+- 2026-10-21: work-unit commit b516ed0 (T1). Parent spot check: pytest 228 passed, ruff clean.
