@@ -19,3 +19,6 @@ wheels/
 # Local order database
 data/
 *.sqlite
+
+# Local agent tooling
+.atl/

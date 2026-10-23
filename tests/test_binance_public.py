@@ -36,7 +36,7 @@ def test_maps_fixture_ads_to_domain():
 
     assert len(ads) == 3
     first = ads[0]
-    assert first.ad_id == "12923944689060954112"
+    assert first.ad_id == "80000000000000000011"
     assert first.side is Side.SELL
     assert (first.asset, first.fiat) == ("USDT", "ARS")
     assert first.price == Decimal("1619.00")
@@ -44,7 +44,7 @@ def test_maps_fixture_ads_to_domain():
     assert first.min_amount == Decimal(1000000)
     assert first.max_amount == Decimal(9800000)
     assert "Mercadopago" in first.payment_methods
-    assert first.advertiser.nick == "MAURO-Z"
+    assert first.advertiser.nick == "Seller-Alpha"
     assert first.advertiser.month_orders == 196
     assert first.advertiser.finish_rate == Decimal("1.0")
     assert first.advertiser.user_type == "user"

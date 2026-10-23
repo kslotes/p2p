@@ -59,7 +59,7 @@ here), plus:
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--host` | `127.0.0.1` | Bind address. Keep it local unless you mean to expose it. |
+| `--host` | `127.0.0.1` | Bind address. Keep it local: the dashboard has no authentication, so anyone who can reach it sees your order history and can trigger syncs. |
 | `--port` | `8000` | Bind port. |
 | `--sync-interval` | `5` | Minutes between background order history syncs (needs the API key, see [order history sync](#order-history-sync)). `0` disables the automatic sync; **Sync now** still works. |
 | `--db` | `$P2P_DB_PATH` or `data/p2p.sqlite` | Order database, as for `p2p-sync`. |
