@@ -108,6 +108,17 @@ function usdtRate(rate, fiat) {
   );
 }
 
+// Binance spot price behind the implied rates; null for stablecoins and while
+// no spot price is known, so el() skips it.
+function spotPrice(price, asset) {
+  if (price == null) return null;
+  return el(
+    "span",
+    { class: "spot-price", title: `Binance spot price of ${asset} in USDT` },
+    `spot ${fmtMoney(price)} USDT`,
+  );
+}
+
 function adsTable(title, ads, fiat, sideClass) {
   const head = el(
     "tr",
@@ -164,6 +175,7 @@ function assetPanel(entry) {
     "h2",
     {},
     `${entry.asset}/${entry.fiat}`,
+    spotPrice(entry.spot_price, entry.asset),
     el(
       "span",
       { class: "meta" },

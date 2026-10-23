@@ -213,6 +213,16 @@ td .usdt-rate {
   margin-left: 0;
 }
 
+/* Binance spot price next to a non-stablecoin's panel title. */
+.spot-price {
+  margin-left: 0.5em;
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
 /* First payment method only; the full list lives in the title tooltip. */
 td.methods-compact {
   max-width: 7.5rem;
