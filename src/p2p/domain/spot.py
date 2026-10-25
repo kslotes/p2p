@@ -8,6 +8,7 @@ ads at a glance. Stablecoins need no conversion.
 from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
+print('test');
 
 CENT = Decimal("0.01")
 STABLECOINS = frozenset({"USDT", "USDC", "FDUSD", "DAI", "TUSD"})
