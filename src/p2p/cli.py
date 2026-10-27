@@ -26,6 +26,7 @@ MAX_PAYMENT_METHODS_SHOWN = 3
 VERIFIED_TICK = "✓"  # check mark before verified merchant nicks
 
 
+print('hola')
 def parse_args(argv: Sequence[str] | None = None) -> Config:
     parser = argparse.ArgumentParser(
         prog="p2p-monitor",
